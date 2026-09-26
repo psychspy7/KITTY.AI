@@ -103,7 +103,9 @@ public class VoiceService extends Service implements RecognitionListener {
             if(action!=null){
                 boolean screen=action.kind.equals("tap")||action.kind.equals("type")||action.kind.equals("scroll")||action.kind.equals("navigation")||action.kind.equals("battery");
                 if(!screen&&KittyAccessibilityService.instance==null&&!MainActivity.visible){
-                    Intent open=new Intent(this,MainActivity.class).putExtra("command",command).setAction("command-"+System.nanoTime());
+                    String nonce=java.util.UUID.randomUUID().toString();
+                    new Prefs(this).p.edit().putString("pending_action_nonce",nonce).putString("pending_action_command",command).commit();
+                    Intent open=new Intent(this,MainActivity.class).putExtra("action_nonce",nonce).setAction("command-"+nonce);
                     PendingIntent pi=PendingIntent.getActivity(this,44,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
                     ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(44,new Notification.Builder(this,"actions").setSmallIcon(R.drawable.ic_kitty).setContentTitle("KITTY • action ready").setContentText("Tap to continue your phone command").setContentIntent(pi).setAutoCancel(true).build());
                     String answer="Sir, tap the KITTY notification to open that app. Accessibility can enable background app actions.";

@@ -91,7 +91,17 @@ public class MainActivity extends Activity {
     @Override protected void onStart(){super.onStart();visible=true;active=this;if(Build.VERSION.SDK_INT>=33)registerReceiver(receiver,new IntentFilter(VoiceService.EVENT),Context.RECEIVER_NOT_EXPORTED);else registerReceiver(receiver,new IntentFilter(VoiceService.EVENT));updateStatus();}
     @Override protected void onStop(){visible=false;if(active==this)active=null;unregisterReceiver(receiver);if(recognizer!=null){recognizer.cancel();recording=false;}super.onStop();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);consumeIntent(intent);}
-    private void consumeIntent(Intent i){if(i!=null&&i.hasExtra("command")){String value=i.getStringExtra("command");i.removeExtra("command");if(value!=null)main.post(()->send(value));}}
+    private void consumeIntent(Intent i){
+        // Launcher activity is exported. Only a one-time notification capability
+        // created inside this app may carry a pending phone action.
+        if(i==null)return;
+        String nonce=i.getStringExtra("action_nonce");i.removeExtra("action_nonce");
+        String expected=prefs.p.getString("pending_action_nonce","");
+        if(nonce==null||expected.isEmpty()||!expected.equals(nonce))return;
+        String value=prefs.p.getString("pending_action_command","");
+        prefs.p.edit().remove("pending_action_nonce").remove("pending_action_command").commit();
+        if(!value.isEmpty())main.post(()->send(value));
+    }
     private void bubble(String message,boolean user,String id,String mode){
         LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setBackground(bg(user?0xFF29243B:CARD,14));box.setPadding(dp(14),dp(11),dp(14),dp(11));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(user?dp(30):0,0,user?0:dp(18),dp(9));chat.addView(box,lp);
