@@ -1,0 +1,12 @@
+{
+  "token": "GENERATED_LOCALLY_BY_SETUP_DO_NOT_COMMIT_REAL_TOKENS",
+  "model": "kitty",
+  "model_base_url": "http://127.0.0.1:8080/v1",
+  "context_window": 4096,
+  "max_tokens": 512,
+  "model_timeout": 120,
+  "weather_enabled": true,
+  "weather_city": "",
+  "weather_country": "IN",
+  "history_days": 30
+}
