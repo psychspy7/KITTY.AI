@@ -1,0 +1,199 @@
+"""Exercise a fresh, disposable Android emulator against the real KITTY gateway.
+
+Uses UI-tree bounds for every tap. No calls/messages or model downloads.
+The actual language model, microphone and other apps require separate testing.
+"""
+import argparse
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "server"))
+from kitty import Brain, Server, initialize
+
+PACKAGE = "com.kitty.ai"
+
+
+class Device:
+    def __init__(self, serial, output):
+        self.serial, self.output, self.step = serial, output, 0
+        output.mkdir(parents=True, exist_ok=True)
+
+    def adb(self, *args, binary=False):
+        r = subprocess.run(["adb", "-s", self.serial, *args], capture_output=True,
+                           timeout=40, check=True)
+        return r.stdout if binary else r.stdout.decode(errors="replace")
+
+    def tree(self, name):
+        self.step += 1
+        raw = self.adb("exec-out", "uiautomator", "dump", "/dev/tty")
+        start, end = raw.find("<?xml"), raw.rfind("</hierarchy>")
+        if start < 0 or end < 0:
+            raise AssertionError("UI tree unavailable: " + raw[:200])
+        xml = raw[start:end + len("</hierarchy>")]
+        (self.output / f"{self.step:02d}-{name}.xml").write_text(xml)
+        return ET.fromstring(xml)
+
+    @staticmethod
+    def bounds(node):
+        points = [int(v) for v in re.findall(r"\d+", node.get("bounds", ""))]
+        if len(points) != 4 or points[2] <= points[0] or points[3] <= points[1]:
+            raise AssertionError("Target has no visible bounds")
+        return points
+
+    def tap_node(self, node):
+        x1, y1, x2, y2 = self.bounds(node)
+        self.adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+
+    def find(self, label):
+        for attempt in range(2):
+            root = self.tree("find")
+            nodes = [n for n in root.iter("node")
+                     if n.get("text", "").casefold() == label.casefold()]
+            if len(nodes) == 1:
+                return nodes[0]
+            scrolls = [n for n in root.iter("node") if n.get("scrollable") == "true"]
+            if attempt == 0 and scrolls:
+                x1,y1,x2,y2 = self.bounds(scrolls[-1])
+                x, top, bottom = (x1+x2)//2, y1+(y2-y1)//4, y2-(y2-y1)//4
+                self.adb("shell", "input", "swipe", str(x), str(bottom), str(x), str(top), "300")
+                continue
+            raise AssertionError(f"Expected one visible target {label!r}, found {len(nodes)}")
+
+    def tap(self, label):
+        self.tap_node(self.find(label))
+
+    def expect(self, fragment, timeout=18):
+        deadline = time.monotonic()+timeout
+        while time.monotonic() < deadline:
+            root = self.tree("expect")
+            if any(fragment in n.get("text", "") for n in root.iter("node")):
+                print("PASS:", fragment, flush=True)
+                return root
+            time.sleep(.25)
+        raise AssertionError("Missing UI text: " + fragment)
+
+    def screenshot(self, name):
+        (self.output / (name+".png")).write_bytes(self.adb("exec-out", "screencap", "-p", binary=True))
+
+    def type_text(self, value):
+        # Test strings are deliberately restricted; adb shell performs a second
+        # parsing step even though the host subprocess does not use a shell.
+        if not re.fullmatch(r"[A-Za-z0-9 _-]+", value):
+            raise ValueError("Unsupported emulator test text")
+        self.adb("shell", "input", "text", value.replace(" ", "%s"))
+
+    def send(self, text):
+        root = self.tree("compose")
+        fields = [n for n in root.iter("node") if n.get("class") == "android.widget.EditText"]
+        if len(fields) != 1:
+            raise AssertionError("Expected the chat input")
+        self.tap_node(fields[0])
+        self.type_text(text)
+        self.adb("shell", "input", "keyevent", "4")  # close software keyboard
+        self.tap("Send")
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--serial", required=True)
+    p.add_argument("--apk", type=Path, default=ROOT/"android/app/build/outputs/apk/debug/app-debug.apk")
+    p.add_argument("--output", type=Path, default=ROOT/"android/app/build/reports/emulator")
+    args = p.parse_args()
+    if not args.serial.startswith("emulator-"):
+        p.error("This smoke test is only for a disposable emulator, not your personal phone.")
+    devices = subprocess.check_output(["adb", "devices"], text=True)
+    if f"{args.serial}\tdevice" not in devices:
+        p.error("Selected emulator is not online")
+    d = Device(args.serial, args.output)
+    server = None
+    with tempfile.TemporaryDirectory(prefix="kitty-emulator-") as tmp:
+        home = Path(tmp)
+        initialize(home)
+        config = json.loads((home/"config.json").read_text())
+        # This token is only for an isolated test server and disappears after QA.
+        config["token"] = "kitty-emulator-test-token"
+        config["model_timeout"] = 2
+        (home/"config.json").write_text(json.dumps(config))
+        server = Server(("127.0.0.1", 0), Brain(home))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            d.adb("install", "-r", str(args.apk))
+            d.adb("reverse", "tcp:8765", f"tcp:{server.server_port}")
+            d.adb("logcat", "-c")
+            activity = d.adb("shell", "cmd", "package", "resolve-activity", "--brief", PACKAGE).strip().splitlines()[-1]
+            if "/" not in activity:
+                raise AssertionError("Launcher activity did not resolve")
+            d.adb("shell", "am", "start", "-W", "-n", activity)
+            d.expect("At your service, Sir.")
+            d.screenshot("01-welcome")
+            d.send("battery")
+            d.expect("Sir, your phone is at")
+            d.screenshot("02-local-command")
+            d.tap("Hey Kitty: off")
+            d.expect("import a small Vosk English model")
+            d.tap("Settings")
+            d.expect("Laptop server URL")
+            d.screenshot("03-settings")
+            root = d.tree("pairing")
+            fields = [n for n in root.iter("node") if n.get("class") == "android.widget.EditText"]
+            if len(fields) != 3:
+                raise AssertionError("Expected URL, token and country fields")
+            d.tap_node(fields[1])
+            d.type_text(config["token"])
+            d.adb("shell", "input", "keyevent", "4")
+            d.tap("Speak replies")
+            d.tap("Save")
+            d.send("remember that emulator pairing works")
+            d.expect("remember")
+            # Check actual persisted data too; seeing the user's own message
+            # alone must never count as a successful server round trip.
+            deadline = time.monotonic()+12
+            while time.monotonic() < deadline and not server.brain.store.memories():
+                time.sleep(.2)
+            assert any(m["text"] == "emulator pairing works" for m in server.brain.store.memories()), "Phone did not save a gateway memory"
+            d.expect("Sir,")
+            d.adb("shell", "am", "force-stop", PACKAGE)
+            d.adb("shell", "am", "start", "-W", "-n", activity, "--es", "command", "battery", "--es", "action_nonce", "invalid-nonce")
+            fresh = d.expect("At your service, Sir.")
+            assert not any("Sir, your phone is at" in n.get("text", "") for n in fresh.iter("node")), "Exported activity executed an untrusted action extra"
+            d.send("show memories")
+            d.expect("1. emulator pairing works")
+            d.screenshot("04-paired-memory")
+            d.send("say hello")
+            d.expect("Start the llama.cpp model server")
+            d.screenshot("05-model-offline")
+            server.shutdown()
+            server.server_close()
+            server = None
+            d.send("hello again")
+            d.expect("couldn't reach my laptop brain")
+            d.send("battery")
+            d.expect("Sir, your phone is at")
+            d.screenshot("06-gateway-offline")
+            crash = d.adb("logcat", "-b", "crash", "-d")
+            if "com.kitty.ai" in crash:
+                raise AssertionError("KITTY crash found in logcat")
+            (args.output/"result.txt").write_text("PASS: launch, local command, missing voice model, settings, pairing, Keystore token after process restart, persisted gateway memory, rejected external action extras, model offline, gateway offline, local command after disconnect; no KITTY crash.\nNo real model inference or audio/WhatsApp verification.\n")
+            print("KITTY emulator smoke checks passed.", flush=True)
+        finally:
+            try:
+                d.screenshot("final-screen")
+                (args.output/"logcat.txt").write_text(d.adb("logcat", "-d"))
+                (args.output/"crash.txt").write_text(d.adb("logcat", "-b", "crash", "-d"))
+                d.adb("reverse", "--remove", "tcp:8765")
+            finally:
+                if server:
+                    server.shutdown()
+                    server.server_close()
+
+
+if __name__ == "__main__":
+    main()

@@ -14,12 +14,16 @@ def main():
     p.add_argument("--gpu-layers",type=int,default=0,help="0 for CPU; use 99 with a supported GPU runtime")
     p.add_argument("--threads",type=int,default=max(1,min(8,(os.cpu_count() or 4)//2)))
     p.add_argument("--exe",type=Path)
+    p.add_argument("--model",type=Path,help="Use your explicitly selected custom GGUF instead of the downloaded model lock")
     args=p.parse_args()
     subprocess.run([sys.executable,str(ROOT/"server/kitty.py"),"init"],check=True)
     config=json.loads((ROOT/"data/config.json").read_text())
     lock=ROOT/"data/model.lock.json"
-    if not lock.exists():raise SystemExit("Run DOWNLOAD_MODEL.bat or python tools/download_model.py first.")
-    meta=json.loads(lock.read_text());model=ROOT/"models"/Path(meta["filename"]).name
+    if args.model:
+        model=args.model.expanduser().resolve()
+    else:
+        if not lock.exists():raise SystemExit("Run DOWNLOAD_MODEL.bat or python tools/download_model.py first.")
+        meta=json.loads(lock.read_text());model=ROOT/"models"/Path(meta["filename"]).name
     if not model.exists():raise SystemExit("The model file is missing; run the downloader.")
     exe=args.exe or shutil.which("llama-server")
     if not exe:

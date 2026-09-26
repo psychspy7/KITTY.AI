@@ -20,12 +20,13 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import org.json.JSONObject;
 import java.util.*;
+import java.lang.ref.WeakReference;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    public static volatile boolean visible;
-    public static MainActivity active;
+    private static WeakReference<MainActivity> current=new WeakReference<>(null);
+    static MainActivity active(){return current.get();}
     private static final int BG=0xFF0C0D12,CARD=0xFF191A23,INK=0xFFF4F0FF,MUTED=0xFFAAA6B9,ACCENT=0xFFC5B6FF;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private final Handler main=new Handler(Looper.getMainLooper());
@@ -89,8 +90,8 @@ public class MainActivity extends Activity {
         consumeIntent(getIntent());
     }
     private void updateStatus(){listen.setText(VoiceService.instance==null?"Hey Kitty: off":"Hey Kitty: on");orb.active(busy||recording||VoiceService.instance!=null);}
-    @Override protected void onStart(){super.onStart();visible=true;active=this;updateStatus();}
-    @Override protected void onStop(){visible=false;if(active==this)active=null;if(recognizer!=null){recognizer.cancel();recording=false;}super.onStop();}
+    @Override protected void onStart(){super.onStart();current=new WeakReference<>(this);updateStatus();}
+    @Override protected void onStop(){if(active()==this)current.clear();if(recognizer!=null){recognizer.cancel();recording=false;}super.onStop();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);consumeIntent(intent);}
     private void consumeIntent(Intent i){
         // Launcher activity is exported. Only a one-time notification capability
@@ -223,5 +224,5 @@ public class MainActivity extends Activity {
             });
         }
     }
-    @Override public void onDestroy(){if(active==this)active=null;if(recognizer!=null)recognizer.destroy();if(tts!=null){tts.stop();tts.shutdown();}worker.shutdownNow();main.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override public void onDestroy(){if(active()==this)current.clear();if(recognizer!=null)recognizer.destroy();if(tts!=null){tts.stop();tts.shutdown();}worker.shutdownNow();main.removeCallbacksAndMessages(null);super.onDestroy();}
 }

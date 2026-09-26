@@ -93,7 +93,7 @@ public class VoiceService extends Service implements RecognitionListener {
     }
     private void emit(String user,String answer,String id,String mode){
         main.post(()->{
-            MainActivity activity=MainActivity.active;
+            MainActivity activity=MainActivity.active();
             if(activity!=null)activity.onVoiceEvent(user,answer,id,mode);
         });
     }
@@ -110,7 +110,7 @@ public class VoiceService extends Service implements RecognitionListener {
             Action action=Router.parse(command);
             if(action!=null){
                 boolean screen=action.kind.equals("tap")||action.kind.equals("type")||action.kind.equals("scroll")||action.kind.equals("navigation")||action.kind.equals("battery");
-                if(!screen&&KittyAccessibilityService.instance==null&&!MainActivity.visible){
+                if(!screen&&KittyAccessibilityService.instance==null&&MainActivity.active()==null){
                     String nonce=java.util.UUID.randomUUID().toString();
                     new Prefs(this).p.edit().putString("pending_action_nonce",nonce).putString("pending_action_command",command).commit();
                     Intent open=new Intent(this,MainActivity.class).putExtra("action_nonce",nonce).setAction("command-"+nonce);
@@ -119,7 +119,8 @@ public class VoiceService extends Service implements RecognitionListener {
                     String answer="Sir, tap the KITTY notification to open that app. Accessibility can enable background app actions.";
                     emit(command,answer,"","local");say(answer);return;
                 }
-                Context context=MainActivity.active!=null?MainActivity.active:this;
+                MainActivity activity=MainActivity.active();
+                Context context=activity!=null?activity:this;
                 Actions.execute(context,action,answer->{emit(command,answer,"","local");say(answer);});
                 // A picker can defer its callback; allow a new wake command after a timeout.
                 main.postDelayed(()->{if(busy&&!tts.isSpeaking())resume();},20000);
@@ -142,7 +143,8 @@ public class VoiceService extends Service implements RecognitionListener {
     @Override public IBinder onBind(Intent intent){return null;}
     @Override public void onDestroy(){
         destroyed=true;if(instance==this)instance=null;main.removeCallbacksAndMessages(null);
-        if(MainActivity.active!=null)MainActivity.active.onVoiceEvent("","","","status");
+        MainActivity activity=MainActivity.active();
+        if(activity!=null)activity.onVoiceEvent("","","","status");
         if(speech!=null){speech.cancel();speech.shutdown();}if(recognizer!=null)recognizer.close();if(model!=null)model.close();
         if(tts!=null){tts.stop();tts.shutdown();}worker.shutdownNow();stopForeground(STOP_FOREGROUND_REMOVE);super.onDestroy();
     }
