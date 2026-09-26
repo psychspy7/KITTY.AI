@@ -43,6 +43,7 @@ def main():
             else:
                 raise RuntimeError("Model did not become ready within five minutes")
             brain = Brain(home)
+            brain.store.remember("The owner prefers concise replies.")
             started = time.perf_counter()
             result = brain.chat({"text":"What is two plus two? Reply in one short sentence.",
                                  "session":str(uuid.uuid4()), "request_id":str(uuid.uuid4())})

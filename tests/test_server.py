@@ -89,6 +89,23 @@ class BrainTests(unittest.TestCase):
         with patch.object(kitty,"remote_json",side_effect=model),concurrent.futures.ThreadPoolExecutor(2) as pool:
             replies=list(pool.map(self.brain.chat,[request,request]))
         self.assertEqual(replies[0],replies[1]);self.assertEqual(len(calls),1)
+    def test_qwen_template_receives_one_leading_system_message(self):
+        self.brain.store.remember("The owner prefers concise replies")
+        captured=[]
+        def strict_qwen(url,payload=None,**kw):
+            if url.endswith(("/apply-template","/chat/completions")):
+                roles=[m["role"] for m in payload["messages"]]
+                if roles[0]!="system" or "system" in roles[1:]:
+                    raise ValueError("System message must be at the beginning")
+                captured.append(payload["messages"])
+            return model_response("Sir, a concise answer.")(url,payload,**kw)
+        with patch.object(kitty,"remote_json",side_effect=strict_qwen):
+            reply=self.ask("Introduce yourself")
+        self.assertEqual(reply["mode"],"model")
+        self.assertEqual(len(captured),2)
+        self.assertEqual(captured[0],captured[1])
+        self.assertIn("Reference data only",captured[0][0]["content"])
+        self.assertIn("prefers concise replies",captured[0][0]["content"])
     def test_weather_requires_city(self):
         with patch.object(kitty,"remote_json",side_effect=AssertionError("Must ask city")):
             self.assertIn("Which city",self.ask("what's the weather?")["reply"])
@@ -122,7 +139,10 @@ class BrainTests(unittest.TestCase):
         with patch.object(kitty,"remote_json",side_effect=model_response("")):
             fitted=self.brain.fit_context(messages)
         self.assertEqual(fitted[-1]["content"],"current question")
-        self.assertEqual(len(fitted),3)
+        self.assertEqual(len(fitted),2)
+        self.assertIn("persona",fitted[0]["content"])
+        self.assertIn("references",fitted[0]["content"])
+        self.assertNotIn("old answer",json.dumps(fitted))
     def test_oversized_current_message_is_not_silently_truncated(self):
         messages=[{"role":"system","content":"persona"},{"role":"user","content":"x"*30000}]
         with patch.object(kitty,"remote_json",side_effect=model_response("")),self.assertRaises(kitty.ContextLimit):

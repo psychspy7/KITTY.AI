@@ -224,10 +224,16 @@ class Brain:
         available = self.config.get("context_window", 4096) - self.config.get("max_tokens", 512) - 64
         messages = list(messages)
         while True:
-            prompt = remote_json(root + "/apply-template", {"messages": messages}, timeout=10)["prompt"]
+            # Qwen3.5's actual GGUF template accepts a system message only at
+            # index zero. Keep references separate while budgeting so they can
+            # be dropped, then combine both into one system message on the wire.
+            wire = messages
+            if len(messages) > 1 and messages[0]["role"] == messages[1]["role"] == "system":
+                wire = [{"role": "system", "content": messages[0]["content"] + "\n\n" + messages[1]["content"]}] + messages[2:]
+            prompt = remote_json(root + "/apply-template", {"messages": wire, "chat_template_kwargs": {"enable_thinking": False}}, timeout=10)["prompt"]
             count = len(remote_json(root + "/tokenize", {"content": prompt, "add_special": False, "parse_special": True}, timeout=10)["tokens"])
             if count <= available:
-                return messages
+                return wire
             # Discard the oldest history pair, then optional reference data.
             history_start = 2 if len(messages) > 1 and messages[1]["role"] == "system" else 1
             if len(messages) > history_start + 1:
