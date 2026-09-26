@@ -8,6 +8,10 @@ KITTY is an early personal-use Android assistant with local phone commands and a
 
 **Start here: [Windows + Android setup](docs/SETUP_WINDOWS.md)** · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
 
+<img src="docs/images/kitty-welcome.png" width="300" alt="KITTY AI running in an Android 15 emulator">
+
+Actual Android emulator screenshot. [Recorded alpha verification](docs/validation/ALPHA_0_1.md).
+
 ## First alpha
 
 | Feature | Implemented behavior |
@@ -34,7 +38,7 @@ This is a starting point for months of real-device testing. It does not yet have
 | Context | 4096 initially; 8192 after measuring memory and latency |
 | Phone gateway | Python 3.11+, `http://127.0.0.1:8765`, pairing-token authentication |
 
-The downloader resolves and records the exact model revision and SHA-256 on first download. The model is not bundled, downloaded during CI, or already fine-tuned. An OpenAI-compatible local API does not require an OpenAI account.
+The downloader resolves and records the exact model revision and SHA-256 on first download. The model is not bundled in the APK and has not been fine-tuned by this project. The separate model compatibility workflow downloads and tests the real weights. An OpenAI-compatible local API does not require an OpenAI account.
 
 ## Setup sequence
 

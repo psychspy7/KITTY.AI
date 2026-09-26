@@ -45,4 +45,4 @@ GitHub's initial workflow produces a debug APK. Debug keys can differ between bu
 - No arbitrary root access, default-assistant role, notification-reading, background location, or universal device-administrator access.
 - Web searches open the browser; there is no general web-reading/research agent yet. Weather uses Open-Meteo.
 - Retrieved document snippets use lexical search, and long contexts may drop older turns/reference snippets to fit.
-- No actual fine-tuning run, live model benchmark, or physical-phone certification has been completed by the automated test suite.
+- No actual fine-tuning run, broad model evaluation, or physical-phone certification has been completed. The real-model smoke result is recorded in [the alpha verification report](validation/ALPHA_0_1.md).

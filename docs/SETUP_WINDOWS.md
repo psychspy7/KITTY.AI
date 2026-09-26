@@ -24,6 +24,8 @@ This is one community derivative matching your requested model family, not an of
 
 The downloader queries the publisher, selects exactly one unsplit Q4_K_M file, records the repository revision and expected SHA-256 in `data/model.lock.json`, and verifies the downloaded bytes. The exact revision is resolved at your first download; it has not been hardcoded to an unverified hash. Re-running the downloader reuses that lock. Do not download executable “model installers” from model repost sites.
 
+The first real compatibility check passed with publisher revision `f3b61227dde75c72d12391c443efd6fa0229e0eb` and llama.cpp `b11146` on a Linux CPU runner. See [the recorded result](validation/ALPHA_0_1.md). A later publisher revision or a Windows/GPU runtime still needs the laptop smoke check below.
+
 ## 3. Install llama.cpp and start the model
 
 Get a Windows build from the [official llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases). Use a current build that supports Qwen3.5. Start with the Windows x64 CPU build if your GPU is unknown. Extract **all** runtime files, including DLLs, into a `runtime` folder inside the KITTY project. The launcher searches that folder for `llama-server.exe`.
@@ -67,7 +69,7 @@ You should see the loaded model alias `kitty` and `READY`. The model API stays o
 
 ## 5. Get the Android APK
 
-Open the repository's [Actions page](https://github.com/psychspy7/KITTY.AI/actions), choose the latest **successful** “Verify KITTY” run for the current commit, and download the `KITTY-AI-debug-apk` artifact. Sign in to GitHub if the download requires it. Extract `app-debug.apk` from that artifact ZIP.
+Open the repository's [Actions page](https://github.com/psychspy7/KITTY.AI/actions), choose the latest **successful** “Verify KITTY” run for the app/server code you want to test, and download the `KITTY-AI-debug-apk` artifact. Documentation-only commits do not create a new APK. Sign in to GitHub if the download requires it. Extract `app-debug.apk` from that artifact ZIP. The first verified download is also linked in [the alpha report](validation/ALPHA_0_1.md).
 
 Android 10 or newer is required. This is a debug APK for personal testing. You can copy it to your phone and install it using Files, approving installation from that source when Android asks. You can also install it over USB in the next step.
 
