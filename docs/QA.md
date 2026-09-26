@@ -8,6 +8,10 @@ The emulator job boots an Android 15/API 35 emulator and installs the same APK a
 
 On your own disposable emulator, reproduce it with `python tools/emulator_smoke.py --serial emulator-5554 --apk path/to/app-debug.apk`. It requires ADB, an unlocked fresh emulator, and Python 3.11+. The script refuses physical-device serials; follow the manual checks below on your actual phone.
 
+The separate **Real model smoke** workflow downloads the selected Q4_K_M with revision/hash verification and the official llama.cpp b11146 Ubuntu CPU runtime with its published checksum. It exercises the real template/tokenizer endpoints and model generation through KITTY with a 4096-token context. It uploads the public model lock, reply, elapsed time and runtime logs as `KITTY-real-model-evidence`; pairing tokens are excluded. Its elapsed time describes that CI machine, not your laptop. Check its run result before claiming compatibility. It does not fine-tune or benchmark a broad evaluation set.
+
+`Verify KITTY` automatically runs on app/server/test/setup-code changes. `Real model smoke` runs when its workflow or CI runner changes. Both can be started manually from GitHub Actions; use that option after changing workflow configuration alone. Documentation changes do not reinstall an emulator or redownload model weights.
+
 ## First phone session
 
 1. Install and launch without permissions. Confirm typing, Settings and local battery status work.

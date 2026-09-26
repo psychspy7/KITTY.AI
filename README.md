@@ -15,7 +15,7 @@ KITTY is an early personal-use Android assistant with local phone commands and a
 | Voice and chat | Typed conversation, available on-device tap-to-talk, imported Vosk model for offline “Hey Kitty” listening |
 | Apps and YouTube | Opens installed apps and YouTube search results; select a visible result to play it |
 | Calls | Resolves contacts on the phone; dialer by default, optional direct calling; asks when names/numbers are ambiguous |
-| WhatsApp | Opens a addressed draft; an explicit `Hey Kitty, tap Send` can press a unique visible Send control |
+| WhatsApp | Opens an addressed draft; an explicit `Hey Kitty, tap Send` can press a unique visible Send control |
 | Screen control | Optional Accessibility for explicit tap, type, scroll, back, home, recents and lock commands |
 | Internet | Browser searches and live, attributed Open-Meteo weather; no general web-reading agent yet |
 | Personalization | Editable personality, explicit memories, local text-document retrieval, approved/corrected reply export |
@@ -59,6 +59,8 @@ cd android
 CI runs the Python server tests, Android command tests, lint and APK compilation. It also runs an Android 15 emulator smoke flow against the real Python gateway, retaining screenshots, UI trees and logs as `KITTY-emulator-evidence`. Check the result for the exact commit you install. These checks do not establish physical-phone audio reliability or the quality/speed of the actual model.
 
 Run `python tools/smoke_test.py` on your laptop after starting llama.cpp to check actual model inference. Use [QA.md](docs/QA.md) for phone testing and persistent APK signing before months of updates.
+
+The separate [Real model smoke workflow](https://github.com/psychspy7/KITTY.AI/actions/workflows/model-smoke.yml) checks the actual downloaded GGUF with a pinned official llama.cpp CPU runtime. Its evidence is a compatibility check on CI hardware; your laptop's speed still needs measurement.
 
 ## Personal data and training
 

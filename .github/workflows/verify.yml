@@ -1,7 +1,23 @@
 name: Verify KITTY
 on:
   push:
+    paths:
+      - 'android/**'
+      - 'server/**'
+      - 'tests/**'
+      - '*.bat'
+      - 'tools/start_model.py'
+      - 'tools/download_model.py'
+      - 'tools/emulator_smoke.py'
   pull_request:
+    paths:
+      - 'android/**'
+      - 'server/**'
+      - 'tests/**'
+      - '*.bat'
+      - 'tools/start_model.py'
+      - 'tools/download_model.py'
+      - 'tools/emulator_smoke.py'
   workflow_dispatch:
 permissions:
   contents: read
