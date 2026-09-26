@@ -19,7 +19,6 @@ import java.util.concurrent.Executors;
 /** Explicitly started microphone foreground service. No boot-start or hidden recording. */
 public class VoiceService extends Service implements RecognitionListener {
     public static volatile VoiceService instance;
-    public static final String EVENT="com.kitty.ai.EVENT";
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private Model model;private Recognizer recognizer;private SpeechService speech;
@@ -55,6 +54,12 @@ public class VoiceService extends Service implements RecognitionListener {
                     try {
                         model=loaded;recognizer=new Recognizer(model,16000.0f);speech=new SpeechService(recognizer,16000.0f);
                         speech.startListening(this);
+                        if(once)main.postDelayed(()->{
+                            if(!destroyed&&!busy){
+                                emit("","Sir, I didn't hear a command. Tap to talk again.","","status");
+                                stopSelf();
+                            }
+                        },10000);
                         update(once?"Listening for one command":"Listening • say Hey Kitty");
                         emit("","Sir, "+(once?"listening for your command.":"listening mode is on."),"","status");
                     }catch(Exception e){emit("","Sir, microphone setup failed. Close other recording apps and try again.","","error");stopSelf();}
@@ -87,7 +92,10 @@ public class VoiceService extends Service implements RecognitionListener {
         if(tts.speak(spoken,TextToSpeech.QUEUE_FLUSH,null,"kitty-"+System.nanoTime())==TextToSpeech.ERROR)resume();
     }
     private void emit(String user,String answer,String id,String mode){
-        sendBroadcast(new Intent(EVENT).setPackage(getPackageName()).putExtra("user",user).putExtra("reply",answer).putExtra("response_id",id).putExtra("mode",mode));
+        main.post(()->{
+            MainActivity activity=MainActivity.active;
+            if(activity!=null)activity.onVoiceEvent(user,answer,id,mode);
+        });
     }
     private void heard(String json){
         if(destroyed||busy)return;
@@ -134,6 +142,7 @@ public class VoiceService extends Service implements RecognitionListener {
     @Override public IBinder onBind(Intent intent){return null;}
     @Override public void onDestroy(){
         destroyed=true;if(instance==this)instance=null;main.removeCallbacksAndMessages(null);
+        if(MainActivity.active!=null)MainActivity.active.onVoiceEvent("","","","status");
         if(speech!=null){speech.cancel();speech.shutdown();}if(recognizer!=null)recognizer.close();if(model!=null)model.close();
         if(tts!=null){tts.stop();tts.shutdown();}worker.shutdownNow();stopForeground(STOP_FOREGROUND_REMOVE);super.onDestroy();
     }

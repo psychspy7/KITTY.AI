@@ -32,12 +32,13 @@ public class MainActivity extends Activity {
     private LinearLayout chat;private ScrollView scroll;private EditText input;private TextView status;private OrbView orb;
     private Prefs prefs;private TextToSpeech tts;private SpeechRecognizer recognizer;private boolean ttsReady,busy,recording;
     private Button listen;
-    private final BroadcastReceiver receiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){
-        String user=i.getStringExtra("user"),reply=i.getStringExtra("reply");
+    // VoiceService shares this process and delivers on the main thread. No
+    // externally reachable broadcast channel is needed for private chat events.
+    void onVoiceEvent(String user,String reply,String responseId,String mode){
         if(user!=null&&!user.isEmpty())bubble(user,true,"","");
-        if(reply!=null&&!reply.isEmpty())bubble(reply,false,i.getStringExtra("response_id"),i.getStringExtra("mode"));
+        if(reply!=null&&!reply.isEmpty())bubble(reply,false,responseId,mode);
         updateStatus();
-    }};
+    }
     private int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
     private GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
     private TextView text(String value,int size,int color){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);return t;}
@@ -88,8 +89,8 @@ public class MainActivity extends Activity {
         consumeIntent(getIntent());
     }
     private void updateStatus(){listen.setText(VoiceService.instance==null?"Hey Kitty: off":"Hey Kitty: on");orb.active(busy||recording||VoiceService.instance!=null);}
-    @Override protected void onStart(){super.onStart();visible=true;active=this;if(Build.VERSION.SDK_INT>=33)registerReceiver(receiver,new IntentFilter(VoiceService.EVENT),Context.RECEIVER_NOT_EXPORTED);else registerReceiver(receiver,new IntentFilter(VoiceService.EVENT));updateStatus();}
-    @Override protected void onStop(){visible=false;if(active==this)active=null;unregisterReceiver(receiver);if(recognizer!=null){recognizer.cancel();recording=false;}super.onStop();}
+    @Override protected void onStart(){super.onStart();visible=true;active=this;updateStatus();}
+    @Override protected void onStop(){visible=false;if(active==this)active=null;if(recognizer!=null){recognizer.cancel();recording=false;}super.onStop();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);consumeIntent(intent);}
     private void consumeIntent(Intent i){
         // Launcher activity is exported. Only a one-time notification capability
