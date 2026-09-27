@@ -78,7 +78,7 @@ class BrainTests(unittest.TestCase):
             self.ask("Private context one",session="one")
             self.ask("Different question",session="two")
         self.assertFalse(captured[0]["stream"]);self.assertFalse(captured[0]["chat_template_kwargs"]["enable_thinking"])
-        self.assertEqual(captured[0]["model"],"kitty");self.assertEqual(captured[0]["max_tokens"],512)
+        self.assertEqual(captured[0]["model"],"kitty");self.assertEqual(captured[0]["max_tokens"],160)
         self.assertNotIn("Private context one",json.dumps(captured[1]))
     def test_concurrent_duplicate_has_one_model_call(self):
         calls=[]
