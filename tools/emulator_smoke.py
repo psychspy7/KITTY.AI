@@ -132,6 +132,9 @@ def main():
             d.adb("install", "-r", str(args.apk))
             d.adb("reverse", "tcp:8765", f"tcp:{server.server_port}")
             d.adb("logcat", "-c")
+            probe=d.adb("shell", "printf 'GET /health HTTP/1.0\\r\\n\\r\\n' | toybox nc -w 3 127.0.0.1 8765")
+            assert '"status": "ok"' in probe, 'ADB reverse cannot reach the gateway health endpoint'
+            print('PASS: USB gateway health endpoint',flush=True)
             d.adb("shell", "input", "keyevent", "224")
             d.adb("shell", "wm", "dismiss-keyguard")
             for setting in ('window_animation_scale','transition_animation_scale','animator_duration_scale'):

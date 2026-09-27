@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 /** Independent, cancellable network calls: a reply never blocks Stop or status. */
 public final class BrainClient {
     private static final OkHttpClient HTTP=new OkHttpClient.Builder().connectTimeout(7,TimeUnit.SECONDS).readTimeout(150,TimeUnit.SECONDS).callTimeout(180,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build();
+    private static final OkHttpClient LOCAL=HTTP.newBuilder().proxy(java.net.Proxy.NO_PROXY).build();
     private static final MediaType JSON=MediaType.get("application/json; charset=utf-8");
     public interface Events { void event(String kind,JSONObject data); void failed(String message); }
     public static void validateUrl(String base) throws Exception {
@@ -23,22 +24,23 @@ public final class BrainClient {
         Request.Builder b=new Request.Builder().url(p.url().replaceAll("/+$","")+path).header("Authorization","Bearer "+token);
         if(payload!=null)b.post(RequestBody.create(payload.toString(),JSON));return b.build();
     }
+    private static Call newCall(Request request){return (request.url().host().equals("127.0.0.1")?LOCAL:HTTP).newCall(request);}
     private static void check(Response r) throws IOException {
         if(r.code()==401)throw new IOException("Pairing token doesn't match, Sir. Check Settings.");
         if(r.code()==404)throw new IOException("Update the laptop server to KITTY 0.2 and restart it, Sir.");
         if(!r.isSuccessful()||r.body()==null)throw new IOException("Laptop returned HTTP "+r.code()+", Sir.");
     }
     public static JSONObject request(Prefs p,String path,JSONObject payload) throws Exception {
-        try(Response r=HTTP.newCall(requestFor(p,path,payload)).execute()){
+        try(Response r=newCall(requestFor(p,path,payload)).execute()){
             check(r);BufferedSource s=r.body().source();s.request(256001);
             if(s.getBuffer().size()>256000)throw new IOException("Reply too large");return new JSONObject(s.readUtf8());
         }
     }
     public static Call stream(Prefs p,String text,String session,String id,Events listener) throws Exception {
         JSONObject body=new JSONObject().put("text",text).put("session",session).put("request_id",id);
-        Call call=HTTP.newCall(requestFor(p,"/v1/chat/stream",body));
+        Call call=newCall(requestFor(p,"/v1/chat/stream",body));
         call.enqueue(new Callback(){
-            public void onFailure(Call c,IOException e){listener.failed(c.isCanceled()?"Stopped":"Sir, I couldn't reach my laptop brain. Check the USB connection and laptop servers.");}
+            public void onFailure(Call c,IOException e){android.util.Log.w("KittyNetwork","Connection failed: "+e.getClass().getSimpleName()+": "+e.getMessage());listener.failed(c.isCanceled()?"Stopped":"Sir, I couldn't reach my laptop brain. Check the USB connection and laptop servers.");}
             public void onResponse(Call c,Response r){
                 try(Response response=r){
                     check(response);BufferedSource s=response.body().source();String kind="";long total=0;boolean done=false;
