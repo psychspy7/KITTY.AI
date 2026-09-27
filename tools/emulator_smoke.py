@@ -5,6 +5,10 @@ The actual language model, microphone and other apps require separate testing.
 """
 import argparse
 import json
+import io
+import tarfile
+import zipfile
+from urllib.request import urlopen
 from pathlib import Path
 import re
 import subprocess
@@ -105,6 +109,35 @@ class Device:
         self.tap("Send")
 
 
+def speech_service_check(d,home):
+    """Real Vosk model/native initialization and service lifecycle, without speech accuracy claims."""
+    model_zip=home/'voice.zip'
+    with urlopen('https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip',timeout=60) as response:
+        model_zip.write_bytes(response.read(60_000_000))
+    archive_path=home/'voice.tar'
+    with zipfile.ZipFile(model_zip) as model,tarfile.open(archive_path,'w') as archive:
+        for entry in model.infolist():
+            parts=Path(entry.filename).parts
+            if len(parts)<2 or entry.is_dir():continue
+            if '..' in parts or entry.filename.startswith('/'):raise ValueError('Unexpected model ZIP path')
+            data=model.read(entry)
+            info=tarfile.TarInfo('files/vosk-model/'+str(Path(*parts[1:])));info.size=len(data);info.mode=0o600
+            archive.addfile(info,io.BytesIO(data))
+    with archive_path.open('rb') as archive:
+        subprocess.run(['adb','-s',d.serial,'exec-in','run-as',PACKAGE,'tar','-xf','-'],stdin=archive,check=True,timeout=90)
+    d.adb('shell','pm','grant',PACKAGE,'android.permission.RECORD_AUDIO')
+    d.tap('Hey Kitty: off');d.expect('Listening · say Hey Kitty',timeout=45)
+    d.screenshot('07-real-vosk-listening')
+    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off')
+    # Stopping while a model is loading must close the native resources.
+    toggle=d.find('Hey Kitty: off');d.tap_node(toggle);d.tap_node(toggle)
+    d.expect('Hey Kitty: off')
+    d.tap('Hey Kitty: off');d.expect('Listening · say Hey Kitty',timeout=45)
+    d.tap('Tap to talk');d.expect('Listening · say your command')
+    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off')
+    print('PASS: real Vosk model load, mic start/stop, rapid stop/restart, bound tap-to-talk arm',flush=True)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--serial", required=True)
@@ -134,7 +167,8 @@ def main():
             d.adb("reverse", "tcp:8765", f"tcp:{server.server_port}")
             d.adb("logcat", "-c")
             probe=d.adb("shell", "(printf 'GET /health HTTP/1.0\\r\\n\\r\\n'; sleep 1) | toybox nc -w 3 127.0.0.1 8765")
-            print("USB health probe:",repr(probe[:200]),"forwarding:",d.adb("reverse","--list"),flush=True)
+            assert '"status": "ok"' in probe, "USB loopback cannot reach the running test gateway"
+            print("PASS: USB gateway health endpoint",flush=True)
             d.adb("shell", "input", "keyevent", "224")
             d.adb("shell", "wm", "dismiss-keyguard")
             for setting in ('window_animation_scale','transition_animation_scale','animator_duration_scale'):
@@ -222,11 +256,13 @@ def main():
             d.expect("couldn't reach my laptop brain")
             d.send("battery")
             d.expect("Sir, your phone is at")
+            d.send("introduce yourself");d.expect("Virat created the KITTY project")
             d.screenshot("06-gateway-offline")
+            speech_service_check(d,home)
             crash = d.adb("logcat", "-b", "crash", "-d")
             if "com.kitty.ai" in crash:
                 raise AssertionError("KITTY crash found in logcat")
-            (args.output/"result.txt").write_text("PASS: launch, local command, missing voice model, settings, pairing, Keystore token after process restart, persisted gateway memory, rejected external action extras, model offline, gateway offline, local command after disconnect, persisted phone history, archived local actions, live partial text and cancellation; no KITTY crash.\nNo real model inference or audio/WhatsApp verification.\n")
+            (args.output/"result.txt").write_text("PASS: launch, local command, missing voice model, settings, pairing, Keystore token after process restart, persisted gateway memory, rejected external action extras, model offline, gateway offline, local command after disconnect, persisted phone history, archived local actions, live partial text and cancellation; real Vosk model initialization and microphone lifecycle; no KITTY crash.\nNo physical speech-accuracy, acoustic TTS, real language-model inference or WhatsApp verification.\n")
             print("KITTY emulator smoke checks passed.", flush=True)
         finally:
             try:

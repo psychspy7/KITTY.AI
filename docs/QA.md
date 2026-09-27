@@ -22,7 +22,7 @@ The separate **Real model smoke** workflow downloads the selected Q4_K_M with re
 6. Test app opening and browser searches. Confirm missing apps report a useful error.
 7. Test contacts with a duplicate name and with multiple saved numbers. Confirm a choice is requested.
 8. Use a consenting test contact for direct calls and WhatsApp. Confirm the visible recipient and message before the first send. The app only claims the intent/tap was requested; WhatsApp delivery is not independently verified.
-9. Test `tap`, `type`, `scroll`, `back`, `home` and `lock`. Confirm disabling Accessibility disables those features.
+9. Test `tap`, `type`, `scroll`, `back`, `home` and `lock`. Check Accessibility label/typing/scroll commands and Shizuku navigation separately; disabling both removes those screen-control backends.
 10. Turn off the laptop gateway. Confirm phone commands still work and conversation reports the disconnected brain.
 11. Test rotation, backgrounding, screen lock, reopening, permission revocation and reboot. Always-on reliability has not been established.
 
@@ -34,7 +34,7 @@ Suggested development gates: no wrong-recipient action in the test set; no accid
 
 ## Signing for long-term use
 
-GitHub's initial workflow produces a debug APK. Debug keys can differ between build machines, so updates may require uninstalling the previous debug app, which clears the phone's pairing and imported speech model. Laptop data remains separate. For months of updates, create a persistent release signing key on your laptop using Android Studio and keep it backed up privately. Never commit the keystore or password. Use the same application ID and signing key for every update.
+The supplied 0.2 development APK uses a retained private signing key. Keep its private backup out of GitHub. Later updates must use that key and an increasing versionCode. GitHub Actions' raw debug artifacts still use temporary runner keys. The [0.2 update guide](UPDATE_0_2.md) includes a backup-based migration helper for older test APKs; Android's Keystore token must be paired again after a reinstall.
 
 ## Current limits
 

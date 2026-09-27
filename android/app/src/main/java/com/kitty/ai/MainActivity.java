@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
     }
     private void render(){
         if(isDestroyed()||!visible)return;
-        status.setText(controller.phase);listen.setText(controller.voiceRunning?"Hey Kitty: on":"Hey Kitty: off");
+        status.setText(!controller.busy&&prefs.speak()&&!controller.speaker.issue.isEmpty()?controller.speaker.issue:controller.phase);listen.setText(controller.voiceRunning?"Hey Kitty: on":"Hey Kitty: off");
         heard.setText(controller.voiceRunning?controller.voiceState+(controller.heard.isEmpty()?"":"\nHeard: "+controller.heard):"");
         orb.active(controller.busy||controller.speaker.active());
         Set<String> ids=new HashSet<>();for(JSONObject t:controller.turns)ids.add(t.optString("id"));

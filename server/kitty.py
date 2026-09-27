@@ -548,6 +548,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
+        # HTTP/1.0 handlers close after each response. Tell pooled clients explicitly.
+        self.send_header("Connection", "close")
+        self.close_connection = True
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
