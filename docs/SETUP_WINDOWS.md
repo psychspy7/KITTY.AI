@@ -1,3 +1,5 @@
+> For the current 0.2 release, use [UPDATE_0_2.md](UPDATE_0_2.md). It supersedes the old HTTP-over-LAN and fast-profile notes below. Keep existing data/models/runtime when replacing source files.
+
 # Set up KITTY on Windows and Android
 
 This is the first personal-use alpha. Keep the laptop awake while using its brain. The phone can still run the implemented local commands when the laptop is unavailable.

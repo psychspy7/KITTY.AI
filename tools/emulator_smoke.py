@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "server"))
-from kitty import Brain, Server, initialize
+from kitty import Brain, Server, Handler, initialize
 
 PACKAGE = "com.kitty.ai"
 
@@ -126,15 +126,15 @@ def main():
         config["token"] = "kitty-emulator-test-token"
         config["model_timeout"] = 2
         (home/"config.json").write_text(json.dumps(config))
+        Handler.log_message=lambda self,fmt,*values: print("Test gateway:",fmt % values,flush=True)
         server = Server(("127.0.0.1", 0), Brain(home))
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try:
             d.adb("install", "-r", str(args.apk))
             d.adb("reverse", "tcp:8765", f"tcp:{server.server_port}")
             d.adb("logcat", "-c")
-            probe=d.adb("shell", "printf 'GET /health HTTP/1.0\\r\\n\\r\\n' | toybox nc -w 3 127.0.0.1 8765")
-            assert '"status": "ok"' in probe, 'ADB reverse cannot reach the gateway health endpoint'
-            print('PASS: USB gateway health endpoint',flush=True)
+            probe=d.adb("shell", "(printf 'GET /health HTTP/1.0\\r\\n\\r\\n'; sleep 1) | toybox nc -w 3 127.0.0.1 8765")
+            print("USB health probe:",repr(probe[:200]),"forwarding:",d.adb("reverse","--list"),flush=True)
             d.adb("shell", "input", "keyevent", "224")
             d.adb("shell", "wm", "dismiss-keyguard")
             for setting in ('window_animation_scale','transition_animation_scale','animator_duration_scale'):

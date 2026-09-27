@@ -1,3 +1,5 @@
+> 0.2 saves phone turns and feedback locally, with an outbox for laptop sync. Starter authored examples are in `training/identity_examples.jsonl`; they have not been used to modify model weights.
+
 # Personalize and train KITTY
 
 No model weights have been fine-tuned by this project yet. The implemented personalization features are a system prompt, explicit memory, local document retrieval, and collection of approved/corrected answers. These are useful immediately; they are not weight training.
@@ -20,7 +22,7 @@ The gateway supports UTF-8 `.txt` and `.md` files up to 5 MB. It indexes chunks 
 
 ## Collect an actual training set
 
-Use **Good reply** and **Correct it** under model answers. Corrections should contain the full ideal answer. Export while the examples are still in the conversation retention window:
+Use **Good reply** and **Correct it** under model answers. Corrections should contain the full ideal answer. The 0.2 upgrade keeps the archive until you explicitly change its retention. Export reviewed examples:
 
 ```powershell
 mkdir training\exports
@@ -51,7 +53,7 @@ python .\llama.cpp\convert_hf_to_gguf.py .\training\runs\kitty-merged --outfile 
 
 9. Test the new GGUF with `py -3 tools\start_model.py --model .\models\kitty-personal-Q4_K_M.gguf` (add GPU flags only for a compatible runtime). The alias and context stay consistent. Record the new file's checksum with your training run; keep the downloaded baseline and its publisher lock untouched for rollback.
 
-For a modest laptop, inference can be practical while fine-tuning is not. GPU model, VRAM, RAM and free disk space determine whether to use LoRA, QLoRA, a smaller training experiment, or a separate training machine. Actual fine-tuning has therefore not been launched before receiving those specifications and a reviewed dataset.
+For a modest laptop, inference can be practical while fine-tuning is not. GPU model, VRAM, RAM and free disk space determine whether to use LoRA, QLoRA, a smaller training experiment, or a separate training machine. Actual fine-tuning has therefore not been launched on the supplied i3-1315U / 8 GB laptop. The repository includes authored identity examples; collecting and reviewing a broader dataset is still required.
 
 ## Sources and further instructions
 

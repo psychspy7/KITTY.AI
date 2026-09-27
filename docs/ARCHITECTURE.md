@@ -1,35 +1,39 @@
-# KITTY architecture
+# KITTY 0.2 architecture and review decisions
 
-The phone handles speech, Android permissions and phone actions. The laptop handles language generation, memory, document retrieval and weather retrieval.
+The Android app owns offline speech recognition (Vosk), TTS, deterministic phone actions and a local SQLite archive. The laptop owns language-model inference (llama.cpp), explicit memory, document retrieval, weather lookup and the aggregate archive. This distributes different tasks across the devices; it does not shard one model across phone/laptop RAM.
 
-| Component | Address | Purpose |
-| --- | --- | --- |
-| llama.cpp | `http://127.0.0.1:8080/v1` | OpenAI-compatible local model API; alias `kitty` |
-| KITTY gateway | `http://127.0.0.1:8765` | Android pairing, conversation, memory and feedback |
-| Android client | Native Android 10+ app | Voice, chat, contacts, app intents and optional Accessibility |
+## Android state and networking
 
-The language model is Qwen3.5-4B-Abliterated in GGUF Q4_K_M format. It is a community derivative, not an official Qwen release with that suffix. Start with 4096 tokens. Increase the model process and gateway configuration together to 8192 after measuring memory and latency.
+`KittyApp` owns `ChatController`, durable storage, a single `SpeechOutput`, and optional `ShizukuControl`. `MainActivity` observes state and renders views; rotating or closing the activity does not discard the active conversation. The view layer remains Java/Android Views. An incremental Compose migration can follow without blocking these functional fixes.
 
-`/v1/chat/completions` and `/v1/models` are served by llama.cpp on port 8080. The phone gateway uses its own `/v1/chat` request contract on port 8765; it does not claim to implement the whole OpenAI API. An OpenAI-compatible protocol does not require an OpenAI account or paid API key.
+`VoiceService` is a user-started microphone foreground service, reached through a local binder. Its loading, listening, paused and stopping states are separate from model generation. Native load-completion callbacks close resources even when the service has already been destroyed. The service does not auto-start on boot or silently restart microphone recording after OS termination. Start failures are reported and retry starts from the visible app.
 
-## Command path
+Final recognition results pass through `WakeGate`. Partial words appear in the UI but cannot authorize an action. The wake word accepts Kitty/Kitti, not the generic word “cutie”. A wake-only utterance opens a ten-second command window after speech output ends. Tap to talk uses the same recognizer without requiring the wake phrase. The microphone pauses during generation and TTS; Stop/Tap to talk provide interruption controls. Genuine full-duplex acoustic echo cancellation/barge-in is not implemented.
 
-Recognized phone commands run through a local Android router. The app resolves contacts on the phone. The model's conversation output is displayed and spoken, not executed as code. The first alpha uses documented command patterns, rather than a general autonomous screen-planning model.
+OkHttp makes independent cancellable calls. `/v1/chat/stream` returns SSE status, token and final-result events. `/v1/cancel` closes the gateway's upstream model socket; client disconnect also cancels it. SSE carries server-to-phone events, while POST endpoints carry commands and feedback. SSE itself is not a bidirectional protocol. Future robot audio/telemetry may justify a separate WebSocket channel.
 
-Accessibility enables explicit commands such as `tap Send`, `type hello`, `scroll down`, `go back`, and `lock the phone`. It inspects the active accessibility tree locally on demand; no screen tree is uploaded. The microphone service runs only after the owner starts listening mode and displays a notification with a stop action. Android can still stop it for resource or battery reasons.
+`SpeechOutput` queues complete sentences as model text arrives and owns Android audio focus. It abandons focus on completion, stop or error. Other media players determine how they honor ducking. Only installed offline TTS voices appear in the picker. Voice accuracy, acoustic echo behaviour and OEM process management still require testing on the physical phone.
 
-## Data path
+## Commands and screen control
 
-The pairing token is generated on the laptop and stored in Android Keystore-encrypted preferences. The laptop stores conversations, memories and feedback in `data/kitty.sqlite3`. Conversation retention is 30 days, purged at gateway startup. Explicit memories persist until deleted. `forget memory N` deletes the memory entry; earlier conversation history may still mention it until that history is deleted or expires. The database is local but not encrypted by this application; use the laptop's disk encryption.
+User text reaches the deterministic router before the model. General model replies never directly become executable phone commands. Contact/app disambiguation uses the foreground activity. Background actions requiring a foreground launch use an immutable PendingIntent targeting a private `ActionActivity`; the exported launcher ignores action extras.
 
-Phone commands processed locally do not go to the laptop. A free-text request that the local router does not recognize does go to the laptop as conversation text. Weather city queries go to Open-Meteo; web search goes through the phone's selected browser. The model is not automatically trained on conversations or the internet.
+Accessibility reads visible nodes for label taps, scrolling and Unicode text entry. Shizuku is optional and requires the owner's explicit Shizuku authorization. Its typed user service supplies navigation and numeric coordinate taps using argument arrays, without a shell interpreter. It is not a complete Accessibility replacement: it cannot infer a button's location from its label, and `input text` is not a universal Unicode text-entry solution. Privileges vary with Shizuku's startup identity and Android version. No claim of full system-control parity is made.
 
-For the first setup use USB with `adb reverse tcp:8765 tcp:8765`. Optional LAN HTTP is unencrypted and intended only for development on a trusted network. Prefer an encrypted private VPN or trusted HTTPS for wireless use. Do not forward ports 8080 or 8765 from the router to the public internet.
+## Connection boundary
 
-## Growth path
+The manifest references a Network Security Configuration that denies cleartext by default and permits exactly `127.0.0.1` for USB forwarding. HTTPS uses normal Android certificate trust. The client also validates the configured base URL and disables redirects; loopback bypasses system proxies. Android's domain configuration cannot express CIDR ranges as proposed in the external review.
 
-1. Test voice recognition, contacts, calls and screen actions on the actual phone.
-2. Collect corrected conversation examples and measure latency, intent errors and battery use.
-3. Evaluate a model-based action planner in a separate, observable execution path.
-4. Fine-tune a matching full-precision base with LoRA, evaluate it, then convert and quantize a deployment copy to GGUF Q4_K_M.
-5. Add PC and robot adapters using the same gateway contract.
+The gateway uses a pairing token, bounded HTTP handlers, bounded bodies/streams and one model generation at a time. It is a single-owner local development server. Network hardening does not make it a public multi-tenant service.
+
+`POST_NOTIFICATIONS` permission is useful for visible controls but is not a prerequisite for starting an Android foreground service. The app still supplies the mandatory foreground notification and handles microphone permission/start restrictions. Battery-setting shortcuts are assistance for owner setup, not a guarantee against OEM termination.
+
+## Persistence and training
+
+The phone's SQLite archive stores accepted turns before processing, then saves their outcomes. Pending requests at process restart become interrupted turns; commands are not automatically replayed. A durable outbox synchronizes archived phone events to the laptop with UUID deduplication. Ratings and corrections have a separate durable queue. On resume, send or saved connection changes the app retries sync; it does not run a perpetual background synchronization job.
+
+The laptop keeps `data/kitty.sqlite3`. The 0.2 upgrade sets `history_days` to zero (no automatic purge). Only three recent eligible turns, a small memory selection and one document excerpt are sent as context by default. The actual llama.cpp tokenizer enforces the context budget. Archiving more conversations therefore does not grow every prompt without bound.
+
+Identity responses run locally on the phone/gateway. The custom personality file is preserved on upgrade, with creator identity prepended only if missing. Authored starter examples and approved/corrected model turns can be exported for a separate training run. Neither saved chat nor retrieval changes the model's weights. Raw phone commands, errors and weather are excluded from model-training exports.
+
+The app encrypts its pairing token using Android Keystore. App databases use Android private storage; the laptop SQLite file is not independently encrypted. Phone uninstall destroys the old Keystore key, so a signing migration restores other settings/data but requires pairing again. Keep developer signing material private and use the retained key for subsequent updates.

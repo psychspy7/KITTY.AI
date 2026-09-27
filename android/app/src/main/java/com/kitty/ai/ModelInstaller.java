@@ -11,7 +11,7 @@ import java.util.zip.ZipInputStream;
 public final class ModelInstaller {
     public static File model(Context c){return new File(c.getFilesDir(),"vosk-model");}
     public static boolean installed(Context c){return new File(model(c),"am/final.mdl").isFile()&&new File(model(c),"conf/model.conf").isFile();}
-    public static void install(Context c,Uri uri) throws Exception {
+    public static synchronized void install(Context c,Uri uri) throws Exception {
         File temp=new File(c.getFilesDir(),"model-import");delete(temp);if(!temp.mkdirs())throw new Exception("Cannot create model directory");
         try(InputStream source=c.getContentResolver().openInputStream(uri);ZipInputStream zip=new ZipInputStream(source)){
             ZipEntry entry;long total=0;int count=0;byte[] data=new byte[16384];
@@ -27,6 +27,7 @@ public final class ModelInstaller {
             }
             File found=find(temp,0);
             if(found==null)throw new Exception("No Vosk model found. Import the original small English Vosk ZIP.");
+            try(org.vosk.Model validated=new org.vosk.Model(found.getAbsolutePath())){ /* Verify before replacing the working model. */ }
             File previous=new File(c.getFilesDir(),"vosk-model-previous");delete(previous);
             File target=model(c);
             if(target.exists()&&!target.renameTo(previous))throw new Exception("Cannot move previous model");

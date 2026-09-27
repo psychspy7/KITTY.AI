@@ -112,7 +112,7 @@ public class VoiceService extends Service implements RecognitionListener {
     @Override public void onTimeout(){main.post(()->{if(!destroyed){if(once)stopListening();else audioState();}});}
     @Override public IBinder onBind(Intent intent){return new LocalBinder();}
     @Override public void onDestroy(){
-        destroyed=true;chat.remove(chatChanged);main.removeCallbacksAndMessages(null);
+        destroyed=true;chat.remove(chatChanged); // Keep load-completion callbacks: they close native resources after destruction.
         SpeechService s=speech;Recognizer r=recognizer;Model m=model;speech=null;recognizer=null;model=null;
         loader.execute(()->close(s,r,m));loader.shutdown();
         chat.voice("Off",null,false);stopForeground(STOP_FOREGROUND_REMOVE);super.onDestroy();

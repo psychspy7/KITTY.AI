@@ -77,10 +77,22 @@ final class ChatController {
         active=null;call=null;busy=false;put(turn,"reply",turn.optString("reply")+" [Stopped]");put(turn,"mode","cancelled");save(turn);phase="Stopped";changed();
         network.execute(()->{try{BrainClient.request(prefs,"/v1/cancel",new JSONObject().put("request_id",id));}catch(Exception ignored){}sync();});
     }
+    void feedback(String id,int rating,String correction,Runnable saved){
+        disk.execute(()->{store.feedback(id,rating,correction);main.post(saved);sync();});
+    }
     void sync(){
         if(!loaded||prefs.token().isEmpty()||!syncing.compareAndSet(false,true))return;
-        disk.execute(()->{JSONArray pending=store.pending();if(pending.length()==0){syncing.set(false);return;}
-            network.execute(()->{boolean success=false;try{JSONArray accepted=BrainClient.request(prefs,"/v1/events",new JSONObject().put("events",pending)).getJSONArray("accepted");disk.execute(()->store.synced(accepted));success=true;}catch(Exception ignored){}finally{syncing.set(false);if(success)disk.execute(this::sync);}});
+        disk.execute(()->{
+            JSONArray pending=store.pending();List<JSONObject> feedback=store.feedbackPending();
+            if(pending.length()==0&&feedback.isEmpty()){syncing.set(false);return;}
+            network.execute(()->{
+                boolean success=false;
+                try{
+                    if(pending.length()>0){JSONArray accepted=BrainClient.request(prefs,"/v1/events",new JSONObject().put("events",pending)).getJSONArray("accepted");disk.execute(()->store.synced(accepted));}
+                    for(JSONObject f:feedback){BrainClient.request(prefs,"/v1/feedback",f);disk.execute(()->store.feedbackSynced(f));}
+                    success=true;
+                }catch(Exception ignored){}finally{syncing.set(false);if(success)disk.execute(this::sync);}
+            });
         });
     }
 }

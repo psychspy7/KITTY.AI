@@ -114,7 +114,10 @@ public class MainActivity extends Activity {
         addButton(feedback,button("Good reply",()->feedback(id,1,"")));
         addButton(feedback,button("Correct it",()->{EditText correction=new EditText(this);correction.setHint("What should KITTY have said?");new AlertDialog.Builder(this).setTitle("Teach KITTY, Sir").setView(correction).setPositiveButton("Save correction",(d,w)->feedback(id,-1,correction.getText().toString())).setNegativeButton("Cancel",null).show();}));box.addView(feedback);
     }
-    private void feedback(String id,int rating,String correction){worker.execute(()->{try{BrainClient.request(prefs,"/v1/feedback",new JSONObject().put("response_id",id).put("rating",rating).put("correction",correction));main.post(()->Toast.makeText(this,"Saved for review, Sir. Model weights haven't changed.",Toast.LENGTH_LONG).show());}catch(Exception e){main.post(()->Toast.makeText(this,"Couldn't save feedback. Check the laptop connection.",Toast.LENGTH_LONG).show());}});}
+    private void feedback(String id,int rating,String correction){
+        if(correction.length()>8000){Toast.makeText(this,"Keep the correction under 8,000 characters, Sir.",Toast.LENGTH_LONG).show();return;}
+        controller.feedback(id,rating,correction,()->Toast.makeText(getApplicationContext(),"Saved on this phone. Feedback syncs when the laptop connects; model weights haven't changed.",Toast.LENGTH_LONG).show());
+    }
     private void sendInput(){String value=input.getText().toString().trim();if(controller.send(this,value,"typed"))input.setText("");}
     private void send(String value){controller.send(this,value,"typed");}
     private void microphone(){if(controller.busy)controller.stop();if(voice!=null){voice.arm();return;}startVoice(true);}
@@ -140,8 +143,8 @@ public class MainActivity extends Activity {
         CheckBox direct=new CheckBox(this);direct.setText("Direct calls after a clear command");direct.setChecked(prefs.directCalls());form.addView(direct);
         form.addView(text("With direct calls off, KITTY opens the dialer. Internet access is already enabled. Use USB loopback or trusted HTTPS for the laptop connection.",11,MUTED));
         form.addView(button("Check saved connection",()->worker.execute(()->{
-            try{JSONObject s=BrainClient.request(prefs,"/v1/status",null);String result=s.optBoolean("model_ready")?"Sir, connected. Model: "+s.optString("model"):"Sir, KITTY connected; start the llama.cpp model server with alias "+s.optString("model")+".";main.post(()->new AlertDialog.Builder(this).setMessage(result).setPositiveButton("OK",null).show());}
-            catch(Exception e){main.post(()->new AlertDialog.Builder(this).setMessage("Sir, connection failed. Save your settings first, then check the laptop server and token.").setPositiveButton("OK",null).show());}
+            try{JSONObject s=BrainClient.request(prefs,"/v1/status",null);String result=s.optBoolean("model_ready")?"Sir, connected. Model: "+s.optString("model"):"Sir, KITTY connected; start the llama.cpp model server with alias "+s.optString("model")+".";main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setMessage(result).setPositiveButton("OK",null).show();});}
+            catch(Exception e){main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setMessage("Sir, connection failed. Save your settings first, then check the laptop server and token.").setPositiveButton("OK",null).show();});}
         })));
         form.addView(button("Grant microphone, contacts and call access",()->{
             ArrayList<String> wanted=new ArrayList<>(Arrays.asList(Manifest.permission.RECORD_AUDIO,Manifest.permission.READ_CONTACTS,Manifest.permission.CALL_PHONE));if(Build.VERSION.SDK_INT>=33)wanted.add(Manifest.permission.POST_NOTIFICATIONS);
@@ -177,7 +180,7 @@ public class MainActivity extends Activity {
         if(request==70&&result==RESULT_OK&&data!=null&&data.getData()!=null){
             Uri uri=data.getData();bubble("Sir, importing the offline model. This may take a moment.",false,"","status");worker.execute(()->{
                 String message;try{ModelInstaller.install(this,uri);message="Sir, offline speech is ready. Tap Hey Kitty to start listening.";}catch(Exception e){message="Sir, model import failed: "+e.getMessage();}
-                final String finalMessage=message;main.post(()->bubble(finalMessage,false,"","status"));
+                final String finalMessage=message;main.post(()->{controller.note(finalMessage);if(!isDestroyed())bubble(finalMessage,false,"","status");});
             });
         }
     }

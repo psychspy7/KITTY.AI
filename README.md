@@ -1,3 +1,7 @@
+# KITTY AI 0.2
+
+**Updating an existing installation? Start with [the 0.2 update guide](docs/UPDATE_0_2.md).** It covers preserving data, APK signing migration, offline voice and the optional smaller model.
+
 # KITTY AI
 
 [![Verify KITTY](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml/badge.svg)](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml)
