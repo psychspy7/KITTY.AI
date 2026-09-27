@@ -37,6 +37,9 @@ final class ChatController {
         speaker.stop();stoppingSpeech=false;JSONObject turn=new JSONObject();
         try{turn.put("id",UUID.randomUUID().toString()).put("session",prefs.session()).put("input",text).put("reply","").put("mode","pending").put("source",via).put("created",System.currentTimeMillis());}catch(JSONException e){return false;}
         turns.add(turn);active=turn;busy=true;phase="Connecting to laptop";save(turn);changed();
+        if(text.matches("(?i)(?:introduce (?:yourself|urself|urslef)|who (?:are (?:you|u)|created (?:you|u)|made (?:you|u))|what is your name)[?.!]*")){
+            finish(turn,"Sir, I'm KITTY AI, Virat's personal AI assistant. Virat created the KITTY project; Qwen supplies my underlying language model. I help with conversations, memories and phone commands—with a little wit.","identity");return true;
+        }
         Action action=Router.parse(text);
         if(action!=null){phase="Phone command";Actions.execute(source,action,answer->{if(active==turn)finish(turn,answer,"local");if(source instanceof ActionActivity)((ActionActivity)source).complete();});return true;}
         reply=new StringBuilder();spoken=0;speaker.begin();

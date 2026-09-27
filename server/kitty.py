@@ -392,7 +392,7 @@ class Brain:
     def _respond(self, text, session, on_event=None, control=None):
         clean = strip_wake(text)
         result = {"reply": "", "actions": [], "mode": "local"}
-        if re.fullmatch(r"(?:introduce (?:yourself|urself|urslef)|who (?:are you|created you|made you)|what is your name)[?.!]*", clean, re.I):
+        if re.fullmatch(r"(?:introduce (?:yourself|urself|urslef)|who (?:are (?:you|u)|created (?:you|u)|made (?:you|u))|what is your name)[?.!]*", clean, re.I):
             result.update(mode="identity", reply="Sir, I'm KITTY AI, Virat's personal AI assistant. Virat created the KITTY project; my underlying language model is Qwen. I help with conversations, memories, and supported phone commands—with a little wit.")
             return result
         action = command(text)
