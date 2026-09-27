@@ -3,7 +3,7 @@
   "model": "kitty",
   "model_base_url": "http://127.0.0.1:8080/v1",
   "context_window": 4096,
-  "max_tokens": 512,
+  "max_tokens": 160,
   "model_timeout": 120,
   "weather_enabled": true,
   "weather_city": "",
