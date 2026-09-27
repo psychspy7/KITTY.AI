@@ -117,7 +117,7 @@ Internet permission is included in the app and normally has no runtime permissio
 Tap-to-talk uses Android's on-device recognizer when available. For continuous “Hey Kitty” listening, use the Vosk model:
 
 1. In KITTY Settings, tap **Download offline speech model**.
-2. Keep the downloaded `vosk-model-small-en-us-0.15.zip` as a ZIP.
+2. Keep the downloaded `vosk-model-small-en-in-0.4.zip` as a ZIP. This lightweight Indian English model is the recommended starting point for English commands spoken with an Indian accent.
 3. Return to Settings → **Import offline speech model ZIP** and choose it.
 4. Tap **Hey Kitty: off** on the main screen to turn listening on.
 5. Say “Hey Kitty, open YouTube.” You can also say “Hey Kitty,” pause, and give a command within ten seconds.
