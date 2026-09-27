@@ -12,7 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--gpu-layers",type=int,default=0,help="0 for CPU; use 99 with a supported GPU runtime")
-    p.add_argument("--threads",type=int,default=max(1,min(8,(os.cpu_count() or 4)//2)))
+    p.add_argument("--threads",type=int,default=max(1,min(6,os.cpu_count() or 4)),help="Inference threads; KITTY's low-memory Windows profile uses up to 6")
     p.add_argument("--exe",type=Path)
     p.add_argument("--model",type=Path,help="Use your explicitly selected custom GGUF instead of the downloaded model lock")
     args=p.parse_args()
