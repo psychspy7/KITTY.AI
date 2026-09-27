@@ -22,7 +22,7 @@ public class VoiceService extends Service implements RecognitionListener {
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private Model model;private Recognizer recognizer;private SpeechService speech;
-    private TextToSpeech tts;private boolean ready,busy,destroyed,once;private long armedUntil;
+    private TextToSpeech tts;private boolean ready,busy,destroyed,once,starting;private long armedUntil;
     private String queuedSpeech;
     @Override public void onCreate(){
         super.onCreate();instance=this;
@@ -44,12 +44,14 @@ public class VoiceService extends Service implements RecognitionListener {
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){stopSelf();return START_NOT_STICKY;}
         once=intent!=null&&intent.getBooleanExtra("once",false);
         startForeground(11,notification("Loading local speech model…"));
-        if(speech!=null)return START_NOT_STICKY;
+        if(starting||speech!=null)return START_NOT_STICKY;
+        starting=true;
         worker.execute(()->{
             try {
                 if(!ModelInstaller.installed(this))throw new Exception("Import the Vosk model in Settings first, Sir.");
                 Model loaded=new Model(ModelInstaller.model(this).getAbsolutePath());
                 main.post(()->{
+                    starting=false;
                     if(destroyed){loaded.close();return;}
                     try {
                         model=loaded;recognizer=new Recognizer(model,16000.0f);speech=new SpeechService(recognizer,16000.0f);
@@ -64,7 +66,7 @@ public class VoiceService extends Service implements RecognitionListener {
                         emit("","Sir, "+(once?"listening for your command.":"listening mode is on."),"","status");
                     }catch(Exception e){emit("","Sir, microphone setup failed. Close other recording apps and try again.","","error");stopSelf();}
                 });
-            }catch(Exception e){main.post(()->{emit("","Sir, local voice setup failed. Import a compatible small Vosk English model in Settings.","","error");stopSelf();});}
+            }catch(Exception e){main.post(()->{starting=false;emit("","Sir, local voice setup failed. Import a compatible small Vosk English model in Settings.","","error");stopSelf();});}
         });
         return START_NOT_STICKY;
     }
@@ -102,7 +104,7 @@ public class VoiceService extends Service implements RecognitionListener {
         try {
             String text=new JSONObject(json).optString("text","").trim();
             if(text.isEmpty())return;
-            boolean wake=text.matches("(?i)^(?:(?:hey|hi|okay|ok)\\s+)?kitty(?:\\s.*)?$");
+            boolean wake=Router.hasWakePhrase(text);
             if(!once&&!wake&&SystemClock.elapsedRealtime()>armedUntil)return;
             String command=wake?Router.stripWake(text):text;
             if(command.isEmpty()){armedUntil=SystemClock.elapsedRealtime()+10000;say("Yes, Sir?");return;}
@@ -137,7 +139,18 @@ public class VoiceService extends Service implements RecognitionListener {
     }
     @Override public void onResult(String hypothesis){main.post(()->heard(hypothesis));}
     @Override public void onFinalResult(String hypothesis){main.post(()->heard(hypothesis));}
-    @Override public void onPartialResult(String hypothesis){}
+    @Override public void onPartialResult(String hypothesis){
+        main.post(()->{
+            if(destroyed||busy||once)return;
+            try {
+                String partial=new JSONObject(hypothesis).optString("partial","").trim();
+                if(Router.hasWakePhrase(partial)){
+                    armedUntil=SystemClock.elapsedRealtime()+10000;
+                    update("Wake word heard • listening for command");
+                }
+            }catch(Exception ignored){}
+        });
+    }
     @Override public void onError(Exception exception){main.post(()->{emit("","Sir, microphone recognition stopped. Restart listening from KITTY.","","error");stopSelf();});}
     @Override public void onTimeout(){main.post(()->{emit("","Sir, I didn't hear a command.","","status");if(once)stopSelf();});}
     @Override public IBinder onBind(Intent intent){return null;}
