@@ -29,6 +29,6 @@ public class OrbView extends View {
         paint.setStyle(Paint.Style.FILL);paint.setColor(0xFFE9E2FF);
         c.drawPath(cat,paint);
         paint.setColor(0xFF16131D);paint.setStrokeWidth(3);c.drawLine(x-r*.25f,y+r*.13f,x-r*.07f,y+r*.19f,paint);c.drawLine(x+r*.25f,y+r*.13f,x+r*.07f,y+r*.19f,paint);
-        if(isShown())postInvalidateDelayed(active?33:90);
+        if(active&&isShown()&&isAttachedToWindow())postInvalidateDelayed(50);
     }
 }

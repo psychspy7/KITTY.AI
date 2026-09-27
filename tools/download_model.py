@@ -17,7 +17,7 @@ def sha256(path):
         for chunk in iter(lambda:f.read(1024*1024),b""):h.update(chunk)
     return h.hexdigest()
 
-def select(info):
+def select(info, repo=REPO):
     revision=info.get("sha","")
     if not re.fullmatch(r"[0-9a-f]{40}",revision):raise ValueError("Publisher revision missing")
     files=[f for f in info.get("siblings",[]) if f["rfilename"].lower().endswith("q4_k_m.gguf") and "mmproj" not in f["rfilename"].lower()]
@@ -25,26 +25,27 @@ def select(info):
     item=files[0];lfs=item.get("lfs",{})
     digest=lfs.get("sha256",lfs.get("oid",""))
     if not re.fullmatch(r"[0-9a-f]{64}",digest):raise ValueError("Publisher SHA-256 missing; download was not started")
-    return {"repository":REPO,"revision":revision,"filename":item["rfilename"],"sha256":digest,"size_bytes":lfs.get("size",item.get("size")),"quantization":"Q4_K_M","base":"wangzhang/Qwen3.5-4B-abliterated"}
+    return {"repository":repo,"revision":revision,"filename":item["rfilename"],"sha256":digest,"size_bytes":lfs.get("size",item.get("size")),"quantization":"Q4_K_M"}
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument("--refresh-lock",action="store_true");args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument("--refresh-lock",action="store_true");p.add_argument("--fast",action="store_true",help="Download the optional 2B Q4_K_M profile");args=p.parse_args()
+    repo="mradermacher/Qwen3.5-2B_Abliterated-GGUF" if args.fast else REPO
     (ROOT/"data").mkdir(exist_ok=True);(ROOT/"models").mkdir(exist_ok=True)
-    lock=ROOT/"data/model.lock.json"
+    lock=ROOT/"data"/("model-fast.lock.json" if args.fast else "model.lock.json")
     if lock.exists() and not args.refresh_lock:
         meta=json.loads(lock.read_text())
     else:
-        req=Request("https://huggingface.co/api/models/"+REPO+"?blobs=true",headers={"User-Agent":"KittyAI/0.1"})
-        with urlopen(req,timeout=30) as r:meta=select(json.load(r))
+        req=Request("https://huggingface.co/api/models/"+repo+"?blobs=true",headers={"User-Agent":"KittyAI/0.1"})
+        with urlopen(req,timeout=30) as r:meta=select(json.load(r),repo)
         lock.write_text(json.dumps(meta,indent=2)+"\n",encoding="utf-8")
-    if meta.get("repository")!=REPO or not re.fullmatch(r"[0-9a-f]{40}",meta.get("revision","")) or not re.fullmatch(r"[0-9a-f]{64}",meta.get("sha256","")):
+    if meta.get("repository")!=repo or not re.fullmatch(r"[0-9a-f]{40}",meta.get("revision","")) or not re.fullmatch(r"[0-9a-f]{64}",meta.get("sha256","")):
         raise ValueError("Invalid model lock; inspect data/model.lock.json")
     target=ROOT/"models"/Path(meta["filename"]).name
     if target.exists() and sha256(target)==meta["sha256"]:
         print("Model already verified:",target);return
-    url="https://huggingface.co/"+REPO+"/resolve/"+meta["revision"]+"/"+quote(meta["filename"],safe="/")+"?download=true"
-    print("Publisher:",REPO);print("Revision:",meta["revision"]);print("File:",meta["filename"])
-    print("Downloading the roughly 2.8 GB model. Leave this window open.")
+    url="https://huggingface.co/"+repo+"/resolve/"+meta["revision"]+"/"+quote(meta["filename"],safe="/")+"?download=true"
+    print("Publisher:",repo);print("Revision:",meta["revision"]);print("File:",meta["filename"])
+    print("Downloading the selected Q4_K_M model. Leave this window open.")
     partial=target.with_suffix(".gguf.part");total=0;last=-1
     try:
         with urlopen(Request(url,headers={"User-Agent":"KittyAI/0.1"}),timeout=120) as response,open(partial,"wb") as out:

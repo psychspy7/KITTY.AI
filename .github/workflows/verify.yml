@@ -6,18 +6,16 @@ on:
       - 'server/**'
       - 'tests/**'
       - '*.bat'
-      - 'tools/start_model.py'
-      - 'tools/download_model.py'
-      - 'tools/emulator_smoke.py'
+      - 'tools/**'
+      - '.github/workflows/verify.yml'
   pull_request:
     paths:
       - 'android/**'
       - 'server/**'
       - 'tests/**'
       - '*.bat'
-      - 'tools/start_model.py'
-      - 'tools/download_model.py'
-      - 'tools/emulator_smoke.py'
+      - 'tools/**'
+      - '.github/workflows/verify.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -44,11 +42,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, unit tests and lint
         working-directory: android
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: KITTY-AI-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KITTY-AI-unsigned-release
+          path: android/app/build/outputs/apk/release/app-release-unsigned.apk
       - uses: actions/upload-artifact@v4
         if: always()
         with:

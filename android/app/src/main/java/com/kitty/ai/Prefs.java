@@ -19,7 +19,7 @@ public final class Prefs {
     public String country(){return p.getString("country","91");}
     public boolean directCalls(){return p.getBoolean("direct_calls",false);}
     public boolean speak(){return p.getBoolean("speak",true);}
-    public String session(){String s=p.getString("session","");if(s.isEmpty()){s=UUID.randomUUID().toString();p.edit().putString("session",s).apply();}return s;}
+    public String session(){synchronized(Prefs.class){String s=p.getString("session","");if(s.isEmpty()){s=UUID.randomUUID().toString();p.edit().putString("session",s).apply();}return s;}}
     public void newSession(){p.edit().putString("session",UUID.randomUUID().toString()).apply();}
     private SecretKey key() throws Exception {
         KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);

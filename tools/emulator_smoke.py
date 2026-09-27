@@ -33,10 +33,14 @@ class Device:
 
     def tree(self, name):
         self.step += 1
-        raw = self.adb("exec-out", "uiautomator", "dump", "/dev/tty")
-        start, end = raw.find("<?xml"), raw.rfind("</hierarchy>")
-        if start < 0 or end < 0:
-            raise AssertionError("UI tree unavailable: " + raw[:200])
+        for attempt in range(6):
+            raw = self.adb("exec-out", "uiautomator", "dump", "/dev/tty")
+            start, end = raw.find("<?xml"), raw.rfind("</hierarchy>")
+            if start >= 0 and end >= 0:
+                break
+            time.sleep(1)
+        else:
+            raise AssertionError("UI tree unavailable after retries: " + raw[:200])
         xml = raw[start:end + len("</hierarchy>")]
         (self.output / f"{self.step:02d}-{name}.xml").write_text(xml)
         return ET.fromstring(xml)
@@ -128,6 +132,10 @@ def main():
             d.adb("install", "-r", str(args.apk))
             d.adb("reverse", "tcp:8765", f"tcp:{server.server_port}")
             d.adb("logcat", "-c")
+            d.adb("shell", "input", "keyevent", "224")
+            d.adb("shell", "wm", "dismiss-keyguard")
+            for setting in ('window_animation_scale','transition_animation_scale','animator_duration_scale'):
+                d.adb("shell", "settings", "put", "global", setting, "0")
             activity = d.adb("shell", "cmd", "package", "resolve-activity", "--brief", PACKAGE).strip().splitlines()[-1]
             if "/" not in activity:
                 raise AssertionError("Launcher activity did not resolve")
@@ -160,16 +168,50 @@ def main():
                 time.sleep(.2)
             assert any(m["text"] == "emulator pairing works" for m in server.brain.store.memories()), "Phone did not save a gateway memory"
             d.expect("Sir,")
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                with server.brain.store.db() as db:
+                    count=db.execute("SELECT COUNT(*) FROM turns WHERE input='battery'").fetchone()[0]
+                if count:break
+                time.sleep(.2)
+            assert count==1, "Local conversation did not sync to archive"
             d.adb("shell", "am", "force-stop", PACKAGE)
             d.adb("shell", "am", "start", "-W", "-n", activity, "--es", "command", "battery", "--es", "action_nonce", "invalid-nonce")
             fresh = d.expect("At your service, Sir.")
-            assert not any("Sir, your phone is at" in n.get("text", "") for n in fresh.iter("node")), "Exported activity executed an untrusted action extra"
+            d.expect("emulator pairing works")
+            time.sleep(1)
+            with server.brain.store.db() as db:
+                assert db.execute("SELECT COUNT(*) FROM turns WHERE input='battery'").fetchone()[0]==count, "Exported activity executed an untrusted action extra"
             d.send("show memories")
             d.expect("1. emulator pairing works")
             d.screenshot("04-paired-memory")
             d.send("say hello")
             d.expect("Start the llama.cpp model server")
             d.screenshot("05-model-offline")
+            original=server.brain._respond
+            release=threading.Event()
+            def fixture(text,session,on_event=None,control=None):
+                if text!='streaming test':return original(text,session,on_event,control)
+                on_event('token',{'text':'Sir, streaming is visible before completion. '})
+                try:
+                    for _ in range(300):
+                        control.check()
+                        if release.wait(.1):break
+                    control.check()
+                    return {'mode':'model','reply':'Sir, streaming is visible before completion. Finished.','actions':[]}
+                except Exception:
+                    return {'mode':'cancelled','reply':'Sir, stopped the test reply.','actions':[]}
+            server.brain._respond=fixture
+            d.send('streaming test')
+            d.expect('streaming is visible before completion')
+            with server.brain.store.db() as db:
+                assert db.execute("SELECT COUNT(*) FROM turns WHERE input='streaming test'").fetchone()[0]==0, 'Reply had already finished'
+            d.screenshot('06-streaming')
+            d.tap('Stop');d.expect('[Stopped]')
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline and server.brain.pending:time.sleep(.1)
+            assert not server.brain.pending,'Stop did not cancel gateway generation'
+            release.set()
             server.shutdown()
             server.server_close()
             server = None
@@ -181,7 +223,7 @@ def main():
             crash = d.adb("logcat", "-b", "crash", "-d")
             if "com.kitty.ai" in crash:
                 raise AssertionError("KITTY crash found in logcat")
-            (args.output/"result.txt").write_text("PASS: launch, local command, missing voice model, settings, pairing, Keystore token after process restart, persisted gateway memory, rejected external action extras, model offline, gateway offline, local command after disconnect; no KITTY crash.\nNo real model inference or audio/WhatsApp verification.\n")
+            (args.output/"result.txt").write_text("PASS: launch, local command, missing voice model, settings, pairing, Keystore token after process restart, persisted gateway memory, rejected external action extras, model offline, gateway offline, local command after disconnect, persisted phone history, archived local actions, live partial text and cancellation; no KITTY crash.\nNo real model inference or audio/WhatsApp verification.\n")
             print("KITTY emulator smoke checks passed.", flush=True)
         finally:
             try:

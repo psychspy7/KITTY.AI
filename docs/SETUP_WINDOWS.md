@@ -174,3 +174,4 @@ LAN HTTP sends the token and conversation in cleartext. Use USB for the initial 
 | Installing a later debug APK says signatures differ | Build with your own persistent signing key for long-term tests; CI debug signing can change between runs. See QA.md |
 
 Your first setup feedback should include laptop CPU, RAM, GPU/VRAM, Windows version, phone model, Android version, and the exact failing command or error. Do not include your pairing token.
+

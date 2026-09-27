@@ -32,6 +32,7 @@ public final class Actions {
                     int level=((BatteryManager)source.getSystemService(Context.BATTERY_SERVICE)).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
                     reply.accept("Sir, your phone is at "+level+" percent. I'm judging the charger, not you.");return;
                 case "tap":case "type":case "scroll":case "navigation":
+                    if(((KittyApp)source.getApplicationContext()).shizuku.tryExecute(a,reply))return;
                     if(KittyAccessibilityService.instance==null){reply.accept("Sir, enable KITTY's Accessibility service in Settings for screen commands.");return;}
                     reply.accept(KittyAccessibilityService.instance.execute(a));return;
                 case "youtube_search":
@@ -79,7 +80,7 @@ public final class Actions {
         if(choices.isEmpty()){reply.accept("Sir, I couldn't find an installed app named "+target+".");return;}
         Consumer<ResolveInfo> go=r->{Intent intent=c.getPackageManager().getLaunchIntentForPackage(r.activityInfo.packageName);if(intent!=null){launch(c,intent);reply.accept("Sir, opening "+r.loadLabel(c.getPackageManager())+".");}else reply.accept("Sir, that app doesn't have a launch screen.");};
         if(choices.size()==1)go.accept(choices.get(0));
-        else if(c instanceof Activity){String[] labels=choices.stream().map(r->r.loadLabel(c.getPackageManager()).toString()).toArray(String[]::new);new AlertDialog.Builder(c).setTitle("Which app, Sir?").setItems(labels,(d,i)->go.accept(choices.get(i))).setNegativeButton("Cancel",null).show();}
+        else if(c instanceof Activity){String[] labels=choices.stream().map(r->r.loadLabel(c.getPackageManager()).toString()).toArray(String[]::new);new AlertDialog.Builder(c).setTitle("Which app, Sir?").setItems(labels,(d,i)->go.accept(choices.get(i))).setOnCancelListener(d->reply.accept("Sir, command cancelled.")).setNegativeButton("Cancel",(d,w)->reply.accept("Sir, command cancelled.")).show();}
         else reply.accept("Sir, several apps match that name. Open KITTY and give the command there to choose.");
     }
     static final class Contact {final String name,number;Contact(String name,String number){this.name=name;this.number=number;}}
@@ -106,6 +107,6 @@ public final class Actions {
         if(matches.size()==1){selected.accept(matches.get(0));return;}
         if(!(c instanceof Activity)){reply.accept("Sir, several numbers match. Open KITTY to choose, or say the full international number.");return;}
         String[] labels=matches.stream().map(x->x.name+"  "+x.number).toArray(String[]::new);
-        new AlertDialog.Builder(c).setTitle("Which number, Sir?").setItems(labels,(d,i)->selected.accept(matches.get(i))).setNegativeButton("Cancel",null).show();
+        new AlertDialog.Builder(c).setTitle("Which number, Sir?").setItems(labels,(d,i)->selected.accept(matches.get(i))).setOnCancelListener(d->reply.accept("Sir, command cancelled.")).setNegativeButton("Cancel",(d,w)->reply.accept("Sir, command cancelled.")).show();
     }
 }

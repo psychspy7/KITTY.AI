@@ -5,160 +5,116 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.os.*;
-import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
 import org.json.JSONObject;
 import org.vosk.Model;
 import org.vosk.Recognizer;
 import org.vosk.android.RecognitionListener;
 import org.vosk.android.SpeechService;
-import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
-/** Explicitly started microphone foreground service. No boot-start or hidden recording. */
+/** Visible, explicitly started microphone owner. Commands use a local binder. */
 public class VoiceService extends Service implements RecognitionListener {
-    public static volatile VoiceService instance;
+    public final class LocalBinder extends Binder { VoiceService service(){return VoiceService.this;} }
     private final Handler main=new Handler(Looper.getMainLooper());
-    private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private Model model;private Recognizer recognizer;private SpeechService speech;
-    private TextToSpeech tts;private boolean ready,busy,destroyed,once,starting;private long armedUntil;
-    private String queuedSpeech;
+    private final ExecutorService loader=Executors.newSingleThreadExecutor();
+    private final WakeGate gate=new WakeGate();
+    private final Runnable chatChanged=this::audioState;
+    private ChatController chat;private Model model;private Recognizer recognizer;private SpeechService speech;
+    private boolean stopping,starting,destroyed,once,submitted,paused,pendingArm,foreground;
+    private long partialAt;private String shown="";
     @Override public void onCreate(){
-        super.onCreate();instance=this;
-        NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        super.onCreate();chat=KittyApp.chat(this);
+        NotificationManager nm=getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("listening","KITTY microphone",NotificationManager.IMPORTANCE_LOW));
-        nm.createNotificationChannel(new NotificationChannel("actions","KITTY actions",NotificationManager.IMPORTANCE_DEFAULT));
-        tts=new TextToSpeech(this,status->{
-            ready=status==TextToSpeech.SUCCESS;
-            if(ready){Speech.configure(tts,new Prefs(this));if(queuedSpeech!=null){String q=queuedSpeech;queuedSpeech=null;say(q);}}
-        });
-        tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){
-            public void onStart(String id){}
-            public void onDone(String id){main.postDelayed(()->resume(),500);}
-            public void onError(String id){main.post(()->resume());}
-        });
+        nm.createNotificationChannel(new NotificationChannel("actions","KITTY phone actions",NotificationManager.IMPORTANCE_DEFAULT));
+        chat.observe(chatChanged);
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId){
-        if(intent!=null&&"stop".equals(intent.getAction())){stopSelf();return START_NOT_STICKY;}
-        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){stopSelf();return START_NOT_STICKY;}
-        once=intent!=null&&intent.getBooleanExtra("once",false);
-        startForeground(11,notification("Loading local speech model…"));
-        if(starting||speech!=null)return START_NOT_STICKY;
-        starting=true;
-        worker.execute(()->{
-            try {
-                if(!ModelInstaller.installed(this))throw new Exception("Import the Vosk model in Settings first, Sir.");
-                Model loaded=new Model(ModelInstaller.model(this).getAbsolutePath());
+        if(intent!=null&&"stop".equals(intent.getAction())){stopListening();return START_NOT_STICKY;}
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){chat.note("Grant microphone access in Settings, Sir.");stopListening();return START_NOT_STICKY;}
+        boolean tap=intent!=null&&intent.getBooleanExtra("once",false);
+        if(starting||speech!=null){if(tap)arm();return START_NOT_STICKY;}
+        once=tap;pendingArm=tap;starting=true;
+        try{startForeground(11,notification("Loading local speech model…"));foreground=true;}
+        catch(RuntimeException e){chat.note("Android could not start the microphone. Open KITTY and try again, Sir.");stopListening();return START_NOT_STICKY;}
+        state("Loading speech model",null);
+        loader.execute(()->{
+            Model m=null;Recognizer r=null;SpeechService s=null;
+            try{
+                if(!ModelInstaller.installed(this))throw new Exception("Missing model");
+                m=new Model(ModelInstaller.model(this).getAbsolutePath());r=new Recognizer(m,16000f);s=new SpeechService(r,16000f);
+                final Model loaded=m;final Recognizer rec=r;final SpeechService service=s;
                 main.post(()->{
-                    starting=false;
-                    if(destroyed){loaded.close();return;}
-                    try {
-                        model=loaded;recognizer=new Recognizer(model,16000.0f);speech=new SpeechService(recognizer,16000.0f);
-                        speech.startListening(this);
-                        if(once)main.postDelayed(()->{
-                            if(!destroyed&&!busy){
-                                emit("","Sir, I didn't hear a command. Tap to talk again.","","status");
-                                stopSelf();
-                            }
-                        },10000);
-                        update(once?"Listening for one command":"Listening • say Hey Kitty");
-                        emit("","Sir, "+(once?"listening for your command.":"listening mode is on."),"","status");
-                    }catch(Exception e){emit("","Sir, microphone setup failed. Close other recording apps and try again.","","error");stopSelf();}
+                    if(destroyed){close(service,rec,loaded);return;}
+                    starting=false;model=loaded;recognizer=rec;speech=service;
+                    if(!speech.startListening(this)){chat.note("Microphone could not start. Close other recording apps and retry, Sir.");stopListening();return;}
+                    audioState();
+                    if(once)arm();else state("Listening · say Hey Kitty",null);
                 });
-            }catch(Exception e){main.post(()->{starting=false;emit("","Sir, local voice setup failed. Import a compatible small Vosk English model in Settings.","","error");stopSelf();});}
-        });
-        return START_NOT_STICKY;
+            }catch(Exception e){close(s,r,m);main.post(()->{if(!destroyed){chat.note("Offline speech setup failed. Import a compatible small Vosk English model, Sir.");stopListening();}});}
+        });return START_NOT_STICKY;
     }
+    private void stopListening(){
+        if(stopping)return;stopping=true;if(speech!=null)speech.setPause(true);
+        chat.voice("Off",null,false);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
+    }
+    private static void close(SpeechService s,Recognizer r,Model m){if(s!=null){s.cancel();s.shutdown();}if(r!=null)r.close();if(m!=null)m.close();}
     private Notification notification(String text){
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,VoiceService.class).setAction("stop"),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         return new Notification.Builder(this,"listening").setSmallIcon(R.drawable.ic_kitty).setContentTitle("KITTY AI").setContentText(text).setContentIntent(open).setOngoing(true).addAction(new Notification.Action.Builder(null,"Stop listening",stop).build()).build();
     }
-    private void update(String text){((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(11,notification(text));}
-    public void arm(){armedUntil=SystemClock.elapsedRealtime()+10000;emit("","Sir, listening for your next command.","","status");}
-    public void pauseForSpeech(){if(speech!=null){speech.setPause(true);speech.reset();}}
-    public void resume(){
-        if(destroyed)return;
-        if(once&&busy){stopSelf();return;}
-        busy=false;
-        if(speech!=null){speech.reset();speech.setPause(false);}
-        update("Listening • say Hey Kitty");
+    private void state(String text,String words){
+        if(destroyed||stopping)return;
+        boolean changed=!text.equals(shown);shown=text;
+        if(changed||words!=null)chat.voice(text,words,true);
+        if(changed&&foreground&&getSystemService(NotificationManager.class).areNotificationsEnabled())getSystemService(NotificationManager.class).notify(11,notification(text));
     }
-    public void say(String text){
-        if(destroyed)return;
-        pauseForSpeech();
-        if(!new Prefs(this).speak()){resume();return;}
-        if(!ready){queuedSpeech=text;main.postDelayed(()->{if(!ready)resume();},2500);return;}
-        String spoken=text.length()>3500?text.substring(0,3500):text;
-        if(tts.speak(spoken,TextToSpeech.QUEUE_FLUSH,null,"kitty-"+System.nanoTime())==TextToSpeech.ERROR)resume();
-    }
-    private void emit(String user,String answer,String id,String mode){
-        main.post(()->{
-            MainActivity activity=MainActivity.active();
-            if(activity!=null)activity.onVoiceEvent(user,answer,id,mode);
-        });
+    public void arm(){if(destroyed)return;pendingArm=true;submitted=false;chat.speaker.stop();audioState();}
+    private void audioState(){
+        if(destroyed||stopping||speech==null)return;
+        boolean hold=chat.busy||chat.speaker.active();
+        if(hold!=paused){paused=hold;speech.setPause(hold);speech.reset();}
+        if(hold){state(chat.speaker.active()?"Speaking · microphone paused":"Thinking · microphone paused",null);return;}
+        if(once&&submitted){stopListening();return;}
+        if(pendingArm){pendingArm=false;gate.arm(SystemClock.elapsedRealtime());main.postDelayed(()->{
+            if(!destroyed&&!chat.busy&&!chat.speaker.active()&&!gate.armed(SystemClock.elapsedRealtime())){if(once){chat.note("I didn't hear a command. Tap to talk again, Sir.");stopListening();}else state("Listening · say Hey Kitty",null);}
+        },10500);}
+        state(gate.armed(SystemClock.elapsedRealtime())?"Listening · say your command":"Listening · say Hey Kitty",null);
     }
     private void heard(String json){
-        if(destroyed||busy)return;
-        try {
-            String text=new JSONObject(json).optString("text","").trim();
-            if(text.isEmpty())return;
-            boolean wake=Router.hasWakePhrase(text);
-            if(!once&&!wake&&SystemClock.elapsedRealtime()>armedUntil)return;
-            String command=wake?Router.stripWake(text):text;
-            if(command.isEmpty()){armedUntil=SystemClock.elapsedRealtime()+10000;say("Yes, Sir?");return;}
-            armedUntil=0;busy=true;pauseForSpeech();update("Working on your command…");
+        if(destroyed||paused||chat.busy)return;
+        try{
+            String text=new JSONObject(json).optString("text").trim();if(text.isEmpty())return;
+            state(shown,text);
+            String command=gate.accept(text,SystemClock.elapsedRealtime());if(command==null)return;
+            if(command.isEmpty()){pendingArm=true;chat.speaker.say("Yes, Sir?");audioState();return;}
+            submitted=true;
             Action action=Router.parse(command);
-            if(action!=null){
-                boolean screen=action.kind.equals("tap")||action.kind.equals("type")||action.kind.equals("scroll")||action.kind.equals("navigation")||action.kind.equals("battery");
-                if(!screen&&KittyAccessibilityService.instance==null&&MainActivity.active()==null){
-                    String nonce=java.util.UUID.randomUUID().toString();
-                    new Prefs(this).p.edit().putString("pending_action_nonce",nonce).putString("pending_action_command",command).commit();
-                    Intent open=new Intent(this,MainActivity.class).putExtra("action_nonce",nonce).setAction("command-"+nonce);
-                    PendingIntent pi=PendingIntent.getActivity(this,44,open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-                    ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(44,new Notification.Builder(this,"actions").setSmallIcon(R.drawable.ic_kitty).setContentTitle("KITTY • action ready").setContentText("Tap to continue your phone command").setContentIntent(pi).setAutoCancel(true).build());
-                    String answer="Sir, tap the KITTY notification to open that app. Accessibility can enable background app actions.";
-                    emit(command,answer,"","local");say(answer);return;
-                }
-                MainActivity activity=MainActivity.active();
-                Context context=activity!=null?activity:this;
-                Actions.execute(context,action,answer->{emit(command,answer,"","local");say(answer);});
-                // A picker can defer its callback; allow a new wake command after a timeout.
-                main.postDelayed(()->{if(busy&&!tts.isSpeaking())resume();},20000);
-            }else{
-                worker.execute(()->{
-                    String answer,id="",mode="error";
-                    try{JSONObject r=BrainClient.chat(new Prefs(this),command);answer=r.getString("reply");id=r.optString("response_id");mode=r.optString("mode");}
-                    catch(Exception e){answer="Sir, I couldn't reach the laptop brain. Check that KITTY and the llama.cpp model server are running.";}
-                    final String response=answer,responseId=id,responseMode=mode;
-                    main.post(()->{if(!destroyed){emit(command,response,responseId,responseMode);say(response);}});
-                });
+            Activity activity=chat.foreground.get();
+            boolean screen=action!=null&&(action.kind.equals("tap")||action.kind.equals("type")||action.kind.equals("scroll")||action.kind.equals("navigation")||action.kind.equals("battery"));
+            if(action!=null&&!screen&&activity==null&&KittyAccessibilityService.instance==null){
+                if(getSystemService(NotificationManager.class).areNotificationsEnabled()){
+                    Intent i=new Intent(this,ActionActivity.class).putExtra("command",command).setAction("command-"+System.nanoTime());
+                    PendingIntent pi=PendingIntent.getActivity(this,44,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+                    getSystemService(NotificationManager.class).notify(44,new Notification.Builder(this,"actions").setSmallIcon(R.drawable.ic_kitty).setContentTitle("KITTY · action ready").setContentText("Tap to continue your phone command").setContentIntent(pi).setAutoCancel(true).build());
+                    chat.note("Tap the KITTY notification to continue, Sir.");chat.speaker.say("Sir, tap my notification to continue.");
+                }else {chat.note("Open KITTY to run that command, or allow notifications in Settings, Sir.");chat.speaker.say("Sir, open KITTY to run that command.");}
+                audioState();return;
             }
-        }catch(Exception e){resume();}
+            chat.send(activity!=null?activity:this,command,"voice");audioState();
+        }catch(Exception e){chat.note("I couldn't read that speech result. Please retry, Sir.");audioState();}
     }
-    @Override public void onResult(String hypothesis){main.post(()->heard(hypothesis));}
-    @Override public void onFinalResult(String hypothesis){main.post(()->heard(hypothesis));}
-    @Override public void onPartialResult(String hypothesis){
-        main.post(()->{
-            if(destroyed||busy||once)return;
-            try {
-                String partial=new JSONObject(hypothesis).optString("partial","").trim();
-                if(Router.hasWakePhrase(partial)){
-                    armedUntil=SystemClock.elapsedRealtime()+10000;
-                    update("Wake word heard • listening for command");
-                }
-            }catch(Exception ignored){}
-        });
-    }
-    @Override public void onError(Exception exception){main.post(()->{emit("","Sir, microphone recognition stopped. Restart listening from KITTY.","","error");stopSelf();});}
-    @Override public void onTimeout(){main.post(()->{emit("","Sir, I didn't hear a command.","","status");if(once)stopSelf();});}
-    @Override public IBinder onBind(Intent intent){return null;}
+    @Override public void onResult(String text){main.post(()->heard(text));}
+    @Override public void onFinalResult(String text){main.post(()->heard(text));}
+    @Override public void onPartialResult(String json){main.post(()->{if(destroyed||paused||SystemClock.elapsedRealtime()-partialAt<400)return;try{String words=new JSONObject(json).optString("partial");if(!words.isEmpty()){partialAt=SystemClock.elapsedRealtime();state(shown,words);}}catch(Exception ignored){}});}
+    @Override public void onError(Exception e){main.post(()->{if(!destroyed){chat.note("Speech recognition stopped. Restart Hey Kitty, Sir.");stopListening();}});}
+    @Override public void onTimeout(){main.post(()->{if(!destroyed){if(once)stopListening();else audioState();}});}
+    @Override public IBinder onBind(Intent intent){return new LocalBinder();}
     @Override public void onDestroy(){
-        destroyed=true;if(instance==this)instance=null;main.removeCallbacksAndMessages(null);
-        MainActivity activity=MainActivity.active();
-        if(activity!=null)activity.onVoiceEvent("","","","status");
-        if(speech!=null){speech.cancel();speech.shutdown();}if(recognizer!=null)recognizer.close();if(model!=null)model.close();
-        if(tts!=null){tts.stop();tts.shutdown();}worker.shutdownNow();stopForeground(STOP_FOREGROUND_REMOVE);super.onDestroy();
+        destroyed=true;chat.remove(chatChanged);main.removeCallbacksAndMessages(null);
+        SpeechService s=speech;Recognizer r=recognizer;Model m=model;speech=null;recognizer=null;model=null;
+        loader.execute(()->close(s,r,m));loader.shutdown();
+        chat.voice("Off",null,false);stopForeground(STOP_FOREGROUND_REMOVE);super.onDestroy();
     }
 }

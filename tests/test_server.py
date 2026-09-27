@@ -100,7 +100,7 @@ class BrainTests(unittest.TestCase):
                 captured.append(payload["messages"])
             return model_response("Sir, a concise answer.")(url,payload,**kw)
         with patch.object(kitty,"remote_json",side_effect=strict_qwen):
-            reply=self.ask("Introduce yourself")
+            reply=self.ask("Describe your abilities")
         self.assertEqual(reply["mode"],"model")
         self.assertEqual(len(captured),2)
         self.assertEqual(captured[0],captured[1])
@@ -182,3 +182,4 @@ class HttpTests(unittest.TestCase):
 
 
 if __name__=="__main__":unittest.main()
+

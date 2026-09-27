@@ -1,50 +1,59 @@
 package com.kitty.ai;
 
 import org.json.JSONObject;
-import java.net.HttpURLConnection;
+import okhttp3.*;
+import okio.BufferedSource;
+import java.io.IOException;
 import java.net.URI;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
+/** Independent, cancellable network calls: a reply never blocks Stop or status. */
 public final class BrainClient {
+    private static final OkHttpClient HTTP=new OkHttpClient.Builder().connectTimeout(7,TimeUnit.SECONDS).readTimeout(150,TimeUnit.SECONDS).callTimeout(180,TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build();
+    private static final MediaType JSON=MediaType.get("application/json; charset=utf-8");
+    public interface Events { void event(String kind,JSONObject data); void failed(String message); }
     public static void validateUrl(String base) throws Exception {
         URI u=new URI(base);
-        if(u.getHost()==null || u.getUserInfo()!=null || u.getQuery()!=null || u.getFragment()!=null || (u.getPath()!=null && !u.getPath().isEmpty() && !u.getPath().equals("/"))) throw new Exception("Use only the server address and port.");
+        if(u.getHost()==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null||(u.getPath()!=null&&!u.getPath().isEmpty()&&!u.getPath().equals("/")))throw new Exception("Use only the server address and port.");
         if("https".equals(u.getScheme()))return;
-        if(!"http".equals(u.getScheme()))throw new Exception("Use http:// for USB/LAN or https:// for a trusted secure server.");
-        String h=u.getHost();
-        if(!h.matches("\\d{1,3}(?:\\.\\d{1,3}){3}"))throw new Exception("Plain HTTP needs a private numeric IPv4 address, such as 127.0.0.1.");
-        String[] parts=h.split("\\.");int a=Integer.parseInt(parts[0]), b=Integer.parseInt(parts[1]);
-        for(String part:parts)if(Integer.parseInt(part)>255)throw new Exception("Invalid IP address.");
-        if(!(a==127 || a==10 || a==192&&b==168 || a==172&&b>=16&&b<=31 || a==100&&b>=64&&b<=127))throw new Exception("Use HTTPS outside USB, private LAN, or your private VPN.");
+        if(!"http".equals(u.getScheme())||!"127.0.0.1".equals(u.getHost()))throw new Exception("Use http://127.0.0.1:8765 over USB, or HTTPS with a trusted certificate for Wi-Fi.");
     }
-    public static JSONObject request(Prefs prefs,String path,JSONObject payload) throws Exception {
-        validateUrl(prefs.url());
-        if(prefs.token().isEmpty())throw new Exception("Pair with the laptop in Settings first, Sir.");
-        URL url=new URL(prefs.url().replaceAll("/+$", "")+path);
-        HttpURLConnection c=(HttpURLConnection)url.openConnection();
-        c.setInstanceFollowRedirects(false);c.setConnectTimeout(7000);c.setReadTimeout(140000);
-        c.setRequestProperty("Authorization","Bearer "+prefs.token());
-        try {
-            if(payload!=null){
-                byte[] data=payload.toString().getBytes(StandardCharsets.UTF_8);
-                c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");c.setFixedLengthStreamingMode(data.length);
-                try(java.io.OutputStream out=c.getOutputStream()){out.write(data);}
-            }
-            int status=c.getResponseCode();
-            if(status==401)throw new Exception("Pairing token doesn't match, Sir. Check Settings.");
-            if(status!=200)throw new Exception("Laptop returned HTTP "+status+", Sir.");
-            try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
-                byte[] buffer=new byte[4096];int n;
-                while((n=in.read(buffer))!=-1){if(out.size()+n>200000)throw new Exception("Reply too large");out.write(buffer,0,n);}
-                return new JSONObject(out.toString("UTF-8"));
-            }
-        } finally {c.disconnect();}
+    private static Request requestFor(Prefs p,String path,JSONObject payload) throws Exception {
+        validateUrl(p.url());String token=p.token();if(token.isEmpty())throw new Exception("Pair with the laptop in Settings first, Sir.");
+        Request.Builder b=new Request.Builder().url(p.url().replaceAll("/+$","")+path).header("Authorization","Bearer "+token);
+        if(payload!=null)b.post(RequestBody.create(payload.toString(),JSON));return b.build();
     }
-    public static JSONObject chat(Prefs p,String text) throws Exception {
-        return request(p,"/v1/chat",new JSONObject().put("text",text).put("session",p.session()).put("request_id",UUID.randomUUID().toString()));
+    private static void check(Response r) throws IOException {
+        if(r.code()==401)throw new IOException("Pairing token doesn't match, Sir. Check Settings.");
+        if(r.code()==404)throw new IOException("Update the laptop server to KITTY 0.2 and restart it, Sir.");
+        if(!r.isSuccessful()||r.body()==null)throw new IOException("Laptop returned HTTP "+r.code()+", Sir.");
+    }
+    public static JSONObject request(Prefs p,String path,JSONObject payload) throws Exception {
+        try(Response r=HTTP.newCall(requestFor(p,path,payload)).execute()){
+            check(r);BufferedSource s=r.body().source();s.request(256001);
+            if(s.getBuffer().size()>256000)throw new IOException("Reply too large");return new JSONObject(s.readUtf8());
+        }
+    }
+    public static Call stream(Prefs p,String text,String session,String id,Events listener) throws Exception {
+        JSONObject body=new JSONObject().put("text",text).put("session",session).put("request_id",id);
+        Call call=HTTP.newCall(requestFor(p,"/v1/chat/stream",body));
+        call.enqueue(new Callback(){
+            public void onFailure(Call c,IOException e){listener.failed(c.isCanceled()?"Stopped":"Sir, I couldn't reach my laptop brain. Check the USB connection and laptop servers.");}
+            public void onResponse(Call c,Response r){
+                try(Response response=r){
+                    check(response);BufferedSource s=response.body().source();String kind="";long total=0;boolean done=false;
+                    while(!s.exhausted()){
+                        String line=s.readUtf8LineStrict(100000);total+=line.length();if(total>2000000)throw new IOException("Reply too large");
+                        if(line.startsWith("event:"))kind=line.substring(6).trim();
+                        else if(line.startsWith("data:")){
+                            JSONObject event=new JSONObject(line.substring(5).trim());
+                            if(kind.equals("error"))throw new IOException(event.optString("error","Laptop error"));
+                            listener.event(kind,event);if(kind.equals("done")){done=true;break;}
+                        }
+                    }
+                    if(!done&&!c.isCanceled())throw new IOException("Sir, the connection ended before the reply completed. Please retry.");
+                }catch(Exception e){if(!c.isCanceled())listener.failed(e.getMessage()==null?"Sir, the laptop connection failed.":e.getMessage());}
+            }
+        });return call;
     }
 }

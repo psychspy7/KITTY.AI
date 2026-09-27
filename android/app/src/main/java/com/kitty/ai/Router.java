@@ -6,13 +6,13 @@ import java.util.regex.Pattern;
 
 /** Local actions continue to work when the laptop is offline. */
 public final class Router {
-    private static final String WAKE="(?:kitty|kitti|cutie)";
+    private static final String WAKE="(?:kitty|kitti)";
     private static Matcher match(String regex, String text) { return Pattern.compile(regex,Pattern.CASE_INSENSITIVE|Pattern.DOTALL).matcher(text); }
     public static boolean hasWakePhrase(String text) {
         if(text==null)return false;
         return text.trim().matches("(?i)^(?:(?:hey|hi|okay|ok)\\s+)?"+WAKE+"(?:[\\s,:.!-]+.*)?$");
     }
-    public static String stripWake(String text) { return text.trim().replaceFirst("(?i)^(?:(?:hey|hi|okay|ok)\\s+)?"+WAKE+"[\\s,:.!-]*", "").trim(); }
+    public static String stripWake(String text) { return text.trim().replaceFirst("(?i)^(?:(?:hey|hi|okay|ok)\\s+)?"+WAKE+"(?=$|[\\s,:.!-])[\\s,:.!-]*", "").trim(); }
     public static Action parse(String original) {
         String s=stripWake(original).replaceFirst("(?i)^(?:please\\s+|can you\\s+|could you\\s+)", "");
         Matcher m=match("(?:open\\s+(?:youtube|utube)\\s+(?:and\\s+)?(?:play|search)\\s+|play\\s+|(?:search\\s+)?(?:youtube|utube)\\s+(?:for\\s+)?)(.+)",s);
@@ -48,3 +48,4 @@ public final class Router {
         return null; // Ask for an international number instead of inventing one.
     }
 }
+

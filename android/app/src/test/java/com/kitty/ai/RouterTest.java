@@ -15,5 +15,7 @@ public class RouterTest {
     @Test public void internationalNormalization(){assertEquals("+442079460000",Router.internationalNumber("+44 20 7946 0000","91"));assertEquals("+442079460000",Router.internationalNumber("00442079460000","91"));}
     @Test public void ambiguousNumbersAreNotInvented(){assertNull(Router.internationalNumber("5551234","1"));assertNull(Router.internationalNumber("Mom","91"));assertNull(Router.internationalNumber("12345","91"));}
     @Test public void weatherGoesToLiveData(){assertNull(Router.parse("weather in Delhi"));}
-    @Test public void wakeWordAcceptsLikelyIndianEnglishTranscripts(){assertTrue(Router.hasWakePhrase("hey kitty"));assertTrue(Router.hasWakePhrase("hey kitti open youtube"));assertTrue(Router.hasWakePhrase("okay cutie battery"));assertFalse(Router.hasWakePhrase("a cute cat"));}
+    @Test public void wakeWordAcceptsLikelyIndianEnglishTranscripts(){assertTrue(Router.hasWakePhrase("hey kitty"));assertTrue(Router.hasWakePhrase("hey kitti open youtube"));assertFalse(Router.hasWakePhrase("okay cutie battery"));assertFalse(Router.hasWakePhrase("a cute cat"));}
+    @Test public void wakeHasWordBoundary(){assertFalse(Router.hasWakePhrase("kittycat open settings"));assertNull(Router.parse("kittycat open settings"));assertEquals("open settings",Router.stripWake("Hey Kitty, open settings"));}
 }
+

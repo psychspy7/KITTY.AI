@@ -8,5 +8,9 @@
   "weather_enabled": true,
   "weather_city": "",
   "weather_country": "IN",
-  "history_days": 30
+  "history_days": 0,
+  "history_turns": 3,
+  "detail_max_tokens": 512,
+  "memory_limit": 6,
+  "document_limit": 1
 }
