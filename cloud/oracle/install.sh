@@ -20,6 +20,7 @@ if [ ! -x "${PYTHON}" ]; then
   python3 -m venv "${APP_ROOT}/.venv"
 fi
 "${PYTHON}" -m pip install --upgrade pip
+"${PYTHON}" -m pip install -r "${APP_ROOT}/requirements-turso.txt"
 
 if [ ! -x "${LLAMA_ROOT}/build/bin/llama-server" ]; then
   if [ ! -d "${LLAMA_ROOT}/.git" ]; then
@@ -39,6 +40,8 @@ MODEL_PATH="$(find "${APP_ROOT}/models" -maxdepth 1 -type f -name '*Q4_K_M.gguf'
 test -n "${MODEL_PATH}" || { echo "The downloaded GGUF was not found" >&2; exit 1; }
 sed "s|__KITTY_MODEL_PATH__|${MODEL_PATH}|g" "${APP_ROOT}/cloud/oracle/kitty-model.service" > /etc/systemd/system/kitty-model.service
 install -m 0644 "${APP_ROOT}/cloud/oracle/kitty-gateway.service" /etc/systemd/system/kitty-gateway.service
+install -d -m 0700 /etc/kitty
+install -m 0600 "${APP_ROOT}/cloud/oracle/turso.env.example" /etc/kitty/turso.env.example
 systemctl daemon-reload
 systemctl enable kitty-model kitty-gateway
 systemctl restart kitty-model

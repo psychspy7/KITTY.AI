@@ -1,0 +1,2 @@
+# Optional cloud memory/history backend. The default installation remains stdlib SQLite.
+pyturso>=0.7.2,<0.8

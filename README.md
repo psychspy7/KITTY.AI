@@ -11,7 +11,7 @@
 
 KITTY is an early personal-use Android assistant with local phone commands and a laptop-hosted language model. Virat created the KITTY project. Her personality is female, candid, witty, occasionally darkly humorous, and addresses her owner as **Sir**. No paid AI API key is required.
 
-**Start here: [Windows + Android setup](docs/SETUP_WINDOWS.md)** · [Cloud VM setup](cloud/oracle/README.md) · [App updates](docs/UPDATES_AND_RELEASES.md) · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
+**Start here: [Windows + Android setup](docs/SETUP_WINDOWS.md)** · [Cloud VM setup](cloud/oracle/README.md) · [Turso memory backend](docs/TURSO.md) · [App updates](docs/UPDATES_AND_RELEASES.md) · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
 
 <img src="docs/images/kitty-welcome.png" width="300" alt="KITTY AI running in an Android 15 emulator">
 

@@ -28,6 +28,28 @@ sudo bash cloud/oracle/install.sh
 
 The script installs Python, compiles `llama-server` for ARM, downloads the locked 2B Q4 model, creates the local database, and installs two systemd services. The model download is large; let it finish.
 
+## 2.5. Enable cloud memory and chat history
+
+Create a Turso database and token from the Turso dashboard or CLI:
+
+```bash
+turso db create kitty-memory
+turso db show --url kitty-memory
+turso db tokens create kitty-memory
+```
+
+On the VM, copy the example environment file and fill in the URL and token:
+
+```bash
+sudo cp /opt/kitty-ai/cloud/oracle/turso.env.example /etc/kitty/turso.env
+sudo nano /etc/kitty/turso.env
+sudo chmod 600 /etc/kitty/turso.env
+sudo systemctl restart kitty-gateway
+sudo /opt/kitty-ai/.venv/bin/python /opt/kitty-ai/server/kitty.py --home /opt/kitty-ai/data doctor
+```
+
+The doctor command should end with `database turso-sync`. KITTY keeps a local Turso replica for fast reads and offline-safe writes, then pushes changes to the cloud. The first Turso database uses a separate `kitty.turso.sqlite3` file, so the old laptop-only `kitty.sqlite3` remains recoverable. Existing local history is not silently copied; export it first if you want to migrate it.
+
 After installation, print the pairing token:
 
 ```bash

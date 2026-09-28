@@ -1,12 +1,15 @@
 """KITTY 0.1: a single-user, local llama.cpp companion server (Python 3.11+).
 
-No third-party Python dependencies. This is a private development server,
-not an Internet-facing service. Run `python server/kitty.py --help`.
+The default backend is the standard-library SQLite database. When
+TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set, the store uses Turso Sync
+with a local replica and pushes writes to the cloud. Run
+`python server/kitty.py --help`.
 """
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
+from contextlib import contextmanager
 import hashlib
 import http.client
 import queue
@@ -132,25 +135,102 @@ def remote_stream(url, payload, control, timeout=120):
         connection.close()
 
 
+class TursoRow:
+    """sqlite3.Row-compatible mapping for pyturso's row-factory callback."""
+
+    def __init__(self, names, values):
+        self.names = list(names)
+        self.values = tuple(values)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self.values[key]
+        return self.values[self.names.index(key)]
+
+    def __iter__(self):
+        return iter(self.values)
+
+    def keys(self):
+        return self.names
+
+
+def turso_row_factory(cursor, row):
+    return TursoRow([column[0] for column in cursor.description], row)
+
+
 class Store:
     def __init__(self, path: Path):
-        self.path = path
-        path.parent.mkdir(parents=True, exist_ok=True)
+        configured_url = os.environ.get("TURSO_DATABASE_URL", "").strip()
+        configured_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
+        if bool(configured_url) != bool(configured_token):
+            raise ValueError("Set both TURSO_DATABASE_URL and TURSO_AUTH_TOKEN, or leave both unset")
+        self.turso = bool(configured_url)
+        self.turso_url = configured_url
+        self.path = path.with_name("kitty.turso.sqlite3") if self.turso else path
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
+        self._dirty = False
+        self._conn = None
+        if self.turso:
+            try:
+                import turso.sync as turso_sync
+            except ImportError as exc:
+                raise RuntimeError("Turso is configured but pyturso is not installed. Run: python -m pip install -r requirements-turso.txt") from exc
+            self._conn = turso_sync.connect(str(self.path), remote_url=configured_url, auth_token=configured_token, bootstrap_if_empty=True)
+            self._conn.row_factory = turso_row_factory
         with self.db() as c:
+            if not self.turso:
+                c.execute("PRAGMA journal_mode=WAL")
             c.executescript("""
-            PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS memories(id INTEGER PRIMARY KEY, text TEXT NOT NULL UNIQUE, created REAL NOT NULL);
             CREATE TABLE IF NOT EXISTS turns(id TEXT PRIMARY KEY, session TEXT, input TEXT, reply TEXT, result TEXT, created REAL);
             CREATE INDEX IF NOT EXISTS turns_session ON turns(session, created);
             CREATE TABLE IF NOT EXISTS feedback(turn_id TEXT PRIMARY KEY, rating INTEGER, correction TEXT, created REAL);
             CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY, source TEXT, text TEXT);
-            CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(id UNINDEXED, text);
             """)
+            if self.turso:
+                self._dirty = True
+            else:
+                c.execute("CREATE VIRTUAL TABLE IF NOT EXISTS docs_fts USING fts5(id UNINDEXED, text)")
 
+    @property
+    def backend(self):
+        return "turso-sync" if self.turso else "sqlite"
+
+    @contextmanager
     def db(self):
+        if self.turso:
+            with self._lock:
+                try:
+                    yield self._conn
+                    self._conn.commit()
+                    if self._dirty:
+                        try:
+                            self._conn.push()
+                            self._dirty = False
+                        except Exception as exc:
+                            # Keep the local replica usable; the next write retries the push.
+                            print(f"KITTY Turso sync pending: {exc}", file=sys.stderr)
+                except Exception:
+                    self._conn.rollback()
+                    raise
+            return
         c = sqlite3.connect(self.path, timeout=10)
         c.row_factory = sqlite3.Row
-        return c
+        try:
+            with c:
+                yield c
+        finally:
+            c.close()
+
+    def sync_now(self):
+        if not self.turso:
+            return False
+        with self._lock:
+            self._conn.commit()
+            self._conn.push()
+            self._dirty = False
+        return True
 
     def memories(self):
         with self.db() as c:
@@ -159,11 +239,14 @@ class Store:
     def remember(self, text):
         with self.db() as c:
             c.execute("INSERT OR IGNORE INTO memories(text,created) VALUES(?,?)", (text[:2000], time.time()))
+            self._dirty = self.turso
             return c.execute("SELECT id FROM memories WHERE text=?", (text[:2000],)).fetchone()[0]
 
     def forget(self, item):
         with self.db() as c:
-            return c.execute("DELETE FROM memories WHERE id=?", (item,)).rowcount > 0
+            changed = c.execute("DELETE FROM memories WHERE id=?", (item,)).rowcount > 0
+            self._dirty = self.turso and changed
+            return changed
 
     def history(self, session, limit=3):
         with self.db() as c:
@@ -178,12 +261,14 @@ class Store:
     def save(self, key, session, text, result):
         with self.db() as c:
             c.execute("INSERT INTO turns VALUES(?,?,?,?,?,?)", (key, session, text, result["reply"], json.dumps(result), time.time()))
+            self._dirty = self.turso
 
     def feedback(self, key, rating, correction):
         with self.db() as c:
             if not c.execute("SELECT 1 FROM turns WHERE id=?", (key,)).fetchone():
                 raise ValueError("Response not found")
             c.execute("INSERT OR REPLACE INTO feedback VALUES(?,?,?,?)", (key, rating, correction, time.time()))
+            self._dirty = self.turso
 
     def purge(self, days):
         if days <= 0:
@@ -191,6 +276,7 @@ class Store:
         with self.db() as c:
             c.execute("DELETE FROM turns WHERE created<?", (time.time() - days * 86400,))
             c.execute("DELETE FROM feedback WHERE turn_id NOT IN (SELECT id FROM turns)")
+            self._dirty = self.turso
 
     def import_events(self, events):
         if not isinstance(events, list) or len(events) > 20:
@@ -209,6 +295,7 @@ class Store:
                 result = {"mode": "phone_event", "reply": reply, "source": str(e.get("source", "phone"))[:40], "actions": []}
                 c.execute("INSERT OR IGNORE INTO turns VALUES(?,?,?,?,?,?)", (key, session, text, reply, json.dumps(result), time.time()))
                 accepted.append(key)
+            self._dirty = self.turso
         return accepted
 
     def ingest(self, path: Path):
@@ -220,12 +307,15 @@ class Store:
         with self.db() as c:
             ids = [r[0] for r in c.execute("SELECT id FROM documents WHERE source=?", (source,))]
             for old in ids:
-                c.execute("DELETE FROM docs_fts WHERE id=?", (old,))
+                if not self.turso:
+                    c.execute("DELETE FROM docs_fts WHERE id=?", (old,))
             c.execute("DELETE FROM documents WHERE source=?", (source,))
             for i, chunk in enumerate(chunks):
                 key = hashlib.sha256(f"{source}:{i}".encode()).hexdigest()
                 c.execute("INSERT INTO documents VALUES(?,?,?)", (key, source, chunk))
-                c.execute("INSERT INTO docs_fts VALUES(?,?)", (key, chunk))
+                if not self.turso:
+                    c.execute("INSERT INTO docs_fts VALUES(?,?)", (key, chunk))
+            self._dirty = self.turso
         return len(chunks)
 
     def retrieve(self, query):
@@ -234,6 +324,9 @@ class Store:
             return []
         match = " OR ".join('"' + x.replace('"', '') + '"' for x in words)
         with self.db() as c:
+            if self.turso:
+                clauses = " OR ".join("text LIKE ?" for _ in words)
+                return [dict(r) for r in c.execute("SELECT source,text FROM documents WHERE " + clauses + " LIMIT 3", tuple("%" + word + "%" for word in words))]
             return [dict(r) for r in c.execute("SELECT d.source,d.text FROM docs_fts f JOIN documents d ON d.id=f.id WHERE docs_fts MATCH ? ORDER BY rank LIMIT 3", (match,))]
 
     def export(self, path):
@@ -579,7 +672,7 @@ class Handler(BaseHTTPRequestHandler):
                 models = [m["id"] for m in remote_json(b.config["model_base_url"].rstrip("/") + "/models", timeout=5).get("data", [])]
             except (OSError, ValueError, URLError):
                 error = "llama.cpp unavailable"
-            self.reply(200, {"version": VERSION, "model": b.config["model"], "loaded_models": models, "model_ready": b.config["model"] in models, "context_window": b.config.get("context_window", 4096), "error": error})
+            self.reply(200, {"version": VERSION, "model": b.config["model"], "loaded_models": models, "model_ready": b.config["model"] in models, "context_window": b.config.get("context_window", 4096), "database": b.store.backend, "error": error})
         elif self.path not in {"/v1/status"}:
             self.reply(404, {"error": "Not found"})
 
@@ -673,6 +766,7 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init")
     sub.add_parser("doctor")
+    sub.add_parser("sync-turso")
     sub.add_parser("token")
     sub.add_parser("rotate-token")
     sub.add_parser("migrate-llama")
@@ -714,7 +808,7 @@ def main():
     elif args.cmd == "export-feedback":
         print(f"Exported {brain.store.export(args.file)} approved/corrected conversation examples.")
     elif args.cmd == "doctor":
-        print(f"Python {sys.version.split()[0]} | KITTY {VERSION} | model {brain.config['model']}")
+        print(f"Python {sys.version.split()[0]} | KITTY {VERSION} | model {brain.config['model']} | database {brain.store.backend}")
         try:
             models = remote_json(brain.config["model_base_url"].rstrip("/") + "/models", timeout=5)
             names = [m["id"] for m in models.get("data", [])]
@@ -723,6 +817,11 @@ def main():
         except (OSError, ValueError, URLError):
             print("MODEL OFFLINE: start the llama.cpp model server on this laptop.")
         print("Database and local retrieval: OK")
+    elif args.cmd == "sync-turso":
+        if brain.store.sync_now():
+            print("Turso sync pushed successfully.")
+        else:
+            print("Turso is not configured; the local SQLite database is active.")
     elif args.cmd == "serve":
         if bool(args.cert) != bool(args.key):
             p.error("--cert and --key must be supplied together")
@@ -746,4 +845,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
