@@ -41,7 +41,7 @@ public final class AppUpdater {
         connection.setConnectTimeout(8000);
         connection.setReadTimeout(10000);
         connection.setRequestProperty("Accept", "application/json");
-        connection.setRequestProperty("User-Agent", "KITTY-AI/" + BuildConfig.VERSION_NAME);
+        connection.setRequestProperty("User-Agent", "KITTY-AI-Android");
         try {
             int code = connection.getResponseCode();
             if (code < 200 || code >= 300) throw new IllegalStateException("Update server returned HTTP " + code);

@@ -39,6 +39,8 @@ public class MainActivity extends Activity {
     };
     private void bindVoice(){if(visible&&controller.voiceRunning&&!bound)bound=bindService(new Intent(this,VoiceService.class),connection,0);}
     private void unbindVoice(){if(bound){unbindService(connection);bound=false;voice=null;}}
+    private String appVersionName(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "unknown";}}
+    private int appVersionCode(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionCode;}catch(Exception e){return 0;}}
     private int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
     private GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
     private TextView text(String value,int size,int color){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);return t;}
@@ -57,7 +59,7 @@ public class MainActivity extends Activity {
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
         TextView brand=text("KITTY AI",20,INK);brand.setLetterSpacing(.14f);brand.setTypeface(null,Typeface.BOLD);titles.addView(brand);
-        status=text("PERSONAL SYSTEM  /  "+BuildConfig.VERSION_NAME,10,MUTED);status.setPadding(0,dp(5),0,0);titles.addView(status);
+        status=text("PERSONAL SYSTEM  /  "+appVersionName(),10,MUTED);status.setPadding(0,dp(5),0,0);titles.addView(status);
         header.addView(titles,new LinearLayout.LayoutParams(0,dp(58),1));
         header.addView(button("Update",this::checkForUpdate),new LinearLayout.LayoutParams(dp(72),dp(42)));
         header.addView(button("Settings",this::settings),new LinearLayout.LayoutParams(dp(85),dp(42)));root.addView(header);
@@ -191,8 +193,8 @@ public class MainActivity extends Activity {
     }
     private void showUpdateResult(AppUpdater.UpdateInfo info){
         if(isFinishing()||isDestroyed())return;
-        if(!info.isNewerThan(BuildConfig.VERSION_CODE)){
-            new AlertDialog.Builder(this).setTitle("KITTY is up to date").setMessage("You are running KITTY "+BuildConfig.VERSION_NAME+" (build "+BuildConfig.VERSION_CODE+").").setPositiveButton("OK",null).show();
+        if(!info.isNewerThan(appVersionCode())){
+            new AlertDialog.Builder(this).setTitle("KITTY is up to date").setMessage("You are running KITTY "+appVersionName()+" (build "+appVersionCode()+").").setPositiveButton("OK",null).show();
             return;
         }
         StringBuilder message=new StringBuilder("KITTY ").append(info.versionName.isEmpty()?info.latestVersionCode:info.versionName).append(" is ready.\n\n");
