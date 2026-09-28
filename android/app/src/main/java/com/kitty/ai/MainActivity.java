@@ -125,7 +125,13 @@ public class MainActivity extends Activity {
     private void sendInput(){String value=input.getText().toString().trim();if(controller.send(this,value,"typed"))input.setText("");}
     private void send(String value){controller.send(this,value,"typed");}
     private void microphone(){if(controller.busy)controller.stop();if(voice!=null){voice.arm();return;}startVoice(true);}
-    private void toggleListening(){if(controller.voiceRunning){unbindVoice();stopService(new Intent(this,VoiceService.class));controller.voice("Off",null,false);}else startVoice(false);}
+    private void requestVoiceStop(){
+        boolean requested=controller.voiceRunning;unbindVoice();controller.voice("Off",null,false);
+        if(!requested)return;
+        try{startService(new Intent(this,VoiceService.class).setAction("stop"));}
+        catch(RuntimeException e){controller.note("Android could not stop the microphone cleanly. Open app settings and stop KITTY, Sir.");}
+    }
+    private void toggleListening(){if(controller.voiceRunning)requestVoiceStop();else startVoice(false);}
     private void startVoice(boolean once){
         if(!ModelInstaller.installed(this)){bubble("Sir, import a small Vosk English model in Settings first. Listening runs locally on your phone.",false,"","status");return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},once?21:22);return;}
@@ -167,7 +173,7 @@ public class MainActivity extends Activity {
         form.addView(button("Show recent archived chats",()->controller.history(true)));
         form.addView(button("Battery optimization settings",()->startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))));
         form.addView(button("Download offline English speech model",()->new AlertDialog.Builder(this).setTitle("Try the model that hears you best").setItems(new String[]{"Indian English · 36 MB","US English · 40 MB"},(d,i)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://alphacephei.com/vosk/models/"+(i==0?"vosk-model-small-en-in-0.4.zip":"vosk-model-small-en-us-0.15.zip"))))).show()));
-        form.addView(button(ModelInstaller.installed(this)?"Replace offline speech model":"Import offline speech model ZIP",()->{unbindVoice();stopService(new Intent(this,VoiceService.class));Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");startActivityForResult(pick,70);}));
+        form.addView(button(ModelInstaller.installed(this)?"Replace offline speech model":"Import offline speech model ZIP",()->{requestVoiceStop();Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");startActivityForResult(pick,70);}));
         form.addView(button("App permissions & battery settings",()->startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())))));
         form.addView(text("Voice: use English commands with these models. Hindi speech packs do not enable Hindi wake words or commands yet. General chat can use Hindi/Hinglish through the laptop model. A female speaking voice depends on the voices installed on this phone. No root or device-owner enrollment is performed.",11,MUTED));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("KITTY Settings").setView(container).setPositiveButton("Save",null).setNegativeButton("Close",null).create();

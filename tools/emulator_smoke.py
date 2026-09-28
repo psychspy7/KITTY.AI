@@ -91,12 +91,36 @@ class Device:
     def screenshot(self, name):
         (self.output / (name+".png")).write_bytes(self.adb("exec-out", "screencap", "-p", binary=True))
 
-    def type_text(self, value):
+    def type_text(self, value, verify=True):
         # Test strings are deliberately restricted; adb shell performs a second
         # parsing step even though the host subprocess does not use a shell.
         if not re.fullmatch(r"[A-Za-z0-9 _-]+", value):
             raise ValueError("Unsupported emulator test text")
-        self.adb("shell", "input", "text", value.replace(" ", "%s"))
+        for attempt in range(3):
+            if attempt:
+                # API 35 supports key combinations. Select the current field and
+                # clear it before retrying a rare overloaded-emulator key reorder.
+                self.adb("shell", "input", "keycombination", "113", "29")
+                self.adb("shell", "input", "keyevent", "67")
+            self.adb("shell", "input", "text", value.replace(" ", "%s"))
+            if not verify:
+                return
+            time.sleep(.35)
+            root = self.tree("typed")
+            focused = [n for n in root.iter("node")
+                       if n.get("class") == "android.widget.EditText" and n.get("focused") == "true"]
+            if len(focused) == 1 and focused[0].get("text", "") == value:
+                return
+        raise AssertionError("ADB did not enter the expected text")
+
+    def wait_service(self, name, running, timeout=12):
+        deadline = time.monotonic()+timeout
+        while time.monotonic() < deadline:
+            active = name in self.adb("shell", "dumpsys", "activity", "services", PACKAGE)
+            if active == running:
+                return
+            time.sleep(.25)
+        raise AssertionError(f"Service {name} running={active}, expected {running}")
 
     def send(self, text):
         root = self.tree("compose")
@@ -128,13 +152,13 @@ def speech_service_check(d,home):
     d.adb('shell','pm','grant',PACKAGE,'android.permission.RECORD_AUDIO')
     d.tap('Hey Kitty: off');d.expect('Listening · say Hey Kitty',timeout=45)
     d.screenshot('07-real-vosk-listening')
-    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off')
+    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off');d.wait_service('VoiceService',False)
     # Stopping while a model is loading must close the native resources.
-    toggle=d.find('Hey Kitty: off');d.tap_node(toggle);d.tap_node(toggle)
-    d.expect('Hey Kitty: off')
+    d.tap('Hey Kitty: off');d.expect('Hey Kitty: on',timeout=5)
+    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off');d.wait_service('VoiceService',False)
     d.tap('Hey Kitty: off');d.expect('Listening · say Hey Kitty',timeout=45)
     d.tap('Tap to talk');d.expect('Listening · say your command')
-    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off')
+    d.tap('Hey Kitty: on');d.expect('Hey Kitty: off');d.wait_service('VoiceService',False)
     print('PASS: real Vosk model load, mic start/stop, rapid stop/restart, bound tap-to-talk arm',flush=True)
 
 
@@ -192,7 +216,7 @@ def main():
             if len(fields) != 3:
                 raise AssertionError("Expected URL, token and country fields")
             d.tap_node(fields[1])
-            d.type_text(config["token"])
+            d.type_text(config["token"],verify=False)
             d.adb("shell", "input", "keyevent", "4")
             d.tap("Speak replies")
             d.tap("Save")

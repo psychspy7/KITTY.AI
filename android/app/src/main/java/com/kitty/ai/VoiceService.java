@@ -30,13 +30,18 @@ public class VoiceService extends Service implements RecognitionListener {
         chat.observe(chatChanged);
     }
     @Override public int onStartCommand(Intent intent,int flags,int startId){
+        // A startForegroundService request must always be acknowledged before any
+        // early stop or permission branch. Otherwise a very fast start/stop can
+        // make Android kill the app with ForegroundServiceDidNotStartInTimeException.
+        if(!foreground){
+            try{startForeground(11,notification("Loading local speech model…"));foreground=true;}
+            catch(RuntimeException e){chat.note("Android could not start the microphone. Open KITTY and try again, Sir.");stopListening();return START_NOT_STICKY;}
+        }
         if(intent!=null&&"stop".equals(intent.getAction())){stopListening();return START_NOT_STICKY;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){chat.note("Grant microphone access in Settings, Sir.");stopListening();return START_NOT_STICKY;}
         boolean tap=intent!=null&&intent.getBooleanExtra("once",false);
         if(starting||speech!=null){if(tap)arm();return START_NOT_STICKY;}
         once=tap;pendingArm=tap;starting=true;
-        try{startForeground(11,notification("Loading local speech model…"));foreground=true;}
-        catch(RuntimeException e){chat.note("Android could not start the microphone. Open KITTY and try again, Sir.");stopListening();return START_NOT_STICKY;}
         state("Loading speech model",null);
         loader.execute(()->{
             Model m=null;Recognizer r=null;SpeechService s=null;
