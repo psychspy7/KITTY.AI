@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
         public void onServiceConnected(ComponentName name,IBinder binder){voice=((VoiceService.LocalBinder)binder).service();}
         public void onServiceDisconnected(ComponentName name){voice=null;}
     };
-    private void bindVoice(){if(visible&&!bound)bound=bindService(new Intent(this,VoiceService.class),connection,0);}
+    private void bindVoice(){if(visible&&controller.voiceRunning&&!bound)bound=bindService(new Intent(this,VoiceService.class),connection,0);}
     private void unbindVoice(){if(bound){unbindService(connection);bound=false;voice=null;}}
     private int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
     private GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
@@ -121,13 +121,17 @@ public class MainActivity extends Activity {
     private void sendInput(){String value=input.getText().toString().trim();if(controller.send(this,value,"typed"))input.setText("");}
     private void send(String value){controller.send(this,value,"typed");}
     private void microphone(){if(controller.busy)controller.stop();if(voice!=null){voice.arm();return;}startVoice(true);}
-    private void toggleListening(){if(controller.voiceRunning){unbindVoice();stopService(new Intent(this,VoiceService.class));}else startVoice(false);}
+    private void toggleListening(){if(controller.voiceRunning){unbindVoice();stopService(new Intent(this,VoiceService.class));controller.voice("Off",null,false);}else startVoice(false);}
     private void startVoice(boolean once){
         if(!ModelInstaller.installed(this)){bubble("Sir, import a small Vosk English model in Settings first. Listening runs locally on your phone.",false,"","status");return;}
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},once?21:22);return;}
         controller.speaker.stop();
-        try{startForegroundService(new Intent(this,VoiceService.class).putExtra("once",once));main.postDelayed(this::bindVoice,200);}
-        catch(RuntimeException e){controller.note("Android blocked microphone startup. Keep KITTY open and retry, Sir.");}
+        try{
+            startForegroundService(new Intent(this,VoiceService.class).putExtra("once",once));
+            // Acknowledge the request before another tap can enqueue a second start.
+            controller.voice("Starting microphone", "", true);main.postDelayed(this::bindVoice,200);
+        }
+        catch(RuntimeException e){controller.voice("Off",null,false);controller.note("Android blocked microphone startup. Keep KITTY open and retry, Sir.");}
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results){super.onRequestPermissionsResult(code,permissions,results);if(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED){if(code==21)startVoice(true);else if(code==22)startVoice(false);}}
     private EditText field(LinearLayout box,String label,String value,boolean secret){

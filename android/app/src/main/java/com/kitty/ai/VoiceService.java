@@ -45,7 +45,7 @@ public class VoiceService extends Service implements RecognitionListener {
                 m=new Model(ModelInstaller.model(this).getAbsolutePath());r=new Recognizer(m,16000f);s=new SpeechService(r,16000f);
                 final Model loaded=m;final Recognizer rec=r;final SpeechService service=s;
                 main.post(()->{
-                    if(destroyed){close(service,rec,loaded);return;}
+                    if(destroyed||stopping){close(service,rec,loaded);return;}
                     starting=false;model=loaded;recognizer=rec;speech=service;
                     if(!speech.startListening(this)){chat.note("Microphone could not start. Close other recording apps and retry, Sir.");stopListening();return;}
                     audioState();
@@ -70,7 +70,7 @@ public class VoiceService extends Service implements RecognitionListener {
         if(changed||words!=null)chat.voice(text,words,true);
         if(changed&&foreground&&getSystemService(NotificationManager.class).areNotificationsEnabled())getSystemService(NotificationManager.class).notify(11,notification(text));
     }
-    public void arm(){if(destroyed)return;pendingArm=true;submitted=false;chat.speaker.stop();audioState();}
+    public void arm(){if(destroyed||stopping)return;pendingArm=true;submitted=false;chat.speaker.stop();audioState();}
     private void audioState(){
         if(destroyed||stopping||speech==null)return;
         boolean hold=chat.busy||chat.speaker.active();
