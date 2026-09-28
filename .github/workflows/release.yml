@@ -1,0 +1,84 @@
+name: Build signed KITTY release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to publish (for example v0.3.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Restore signing key
+        env:
+          KITTY_KEYSTORE_B64: ${{ secrets.KITTY_KEYSTORE_B64 }}
+        run: |
+          test -n "$KITTY_KEYSTORE_B64" || { echo "Add KITTY_KEYSTORE_B64 in repository secrets first"; exit 1; }
+          echo "$KITTY_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/kitty-release.jks"
+      - name: Build signed APK
+        working-directory: android
+        env:
+          KITTY_KEYSTORE_PATH: ${{ runner.temp }}/kitty-release.jks
+          KITTY_STORE_PASSWORD: ${{ secrets.KITTY_STORE_PASSWORD }}
+          KITTY_KEY_ALIAS: ${{ secrets.KITTY_KEY_ALIAS }}
+          KITTY_KEY_PASSWORD: ${{ secrets.KITTY_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon clean assembleRelease
+      - name: Prepare release metadata
+        id: metadata
+        run: |
+          mkdir -p release-assets
+          cp android/app/build/outputs/apk/release/app-release.apk release-assets/KITTY-AI-release.apk
+          sha256sum release-assets/KITTY-AI-release.apk | cut -d' ' -f1 > release-assets/sha256.txt
+          VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle)
+          VERSION_CODE=$(sed -n "s/.*versionCode \([0-9]*\).*/\1/p" android/app/build.gradle)
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cat release-assets/sha256.txt)" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          gh release create "${RELEASE_TAG}" release-assets/KITTY-AI-release.apk release-assets/sha256.txt \
+            --title "KITTY AI ${VERSION_NAME}" \
+            --generate-notes
+      - name: Update public update manifest
+        env:
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+          SHA256: ${{ steps.metadata.outputs.sha256 }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = {
+              "latest_version_code": int(os.environ["VERSION_CODE"]),
+              "version_name": os.environ["VERSION_NAME"],
+              "download_url": "https://github.com/psychspy7/KITTY.AI/releases/latest/download/KITTY-AI-release.apk",
+              "sha256": os.environ["SHA256"],
+              "release_notes": "See the GitHub release notes for this build.",
+              "min_supported_version_code": 20,
+          }
+          Path("release/update.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add release/update.json
+          git commit -m "chore: publish update manifest ${VERSION_NAME}" || exit 0
+          git push origin HEAD:main

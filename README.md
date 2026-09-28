@@ -11,7 +11,7 @@
 
 KITTY is an early personal-use Android assistant with local phone commands and a laptop-hosted language model. Virat created the KITTY project. Her personality is female, candid, witty, occasionally darkly humorous, and addresses her owner as **Sir**. No paid AI API key is required.
 
-**Start here: [Windows + Android setup](docs/SETUP_WINDOWS.md)** · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
+**Start here: [Windows + Android setup](docs/SETUP_WINDOWS.md)** · [Cloud VM setup](cloud/oracle/README.md) · [App updates](docs/UPDATES_AND_RELEASES.md) · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
 
 <img src="docs/images/kitty-welcome.png" width="300" alt="KITTY AI running in an Android 15 emulator">
 
@@ -54,6 +54,8 @@ The downloader resolves and records the exact model revision and SHA-256 on firs
 5. Install the supplied signed test APK. For source builds, `KITTY-AI-debug-apk` is available from successful [Verify KITTY runs](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml); their temporary keys are not interchangeable with the retained signing key. See the update guide before replacing an existing installation.
 6. Connect by USB with `adb reverse tcp:8765 tcp:8765`; enter the local URL and pairing token in KITTY Settings.
 7. Approve permissions for the features you want, and import the offline speech ZIP for continuous listening.
+
+To keep KITTY available when the laptop is off, follow the [Oracle Cloud VM guide](cloud/oracle/README.md). The Android header's **Update** button follows the signed-release process in [UPDATES_AND_RELEASES.md](docs/UPDATES_AND_RELEASES.md).
 
 Follow the [full setup guide](docs/SETUP_WINDOWS.md) for exact commands, downloads and troubleshooting. Start with `battery`, `open YouTube`, `weather in Delhi`, and `remember that I prefer short replies`.
 

@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final int BG=0xFF0C0D12,CARD=0xFF191A23,INK=0xFFF4F0FF,MUTED=0xFFAAA6B9,ACCENT=0xFFC5B6FF;
+    private static final String UPDATE_MANIFEST="https://raw.githubusercontent.com/psychspy7/KITTY.AI/main/release/update.json";
     private final ExecutorService worker=Executors.newFixedThreadPool(2);
     private final Handler main=new Handler(Looper.getMainLooper());
     private LinearLayout chat;private ScrollView scroll;private EditText input;private TextView status,heard;private OrbView orb;
@@ -56,8 +57,9 @@ public class MainActivity extends Activity {
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
         TextView brand=text("KITTY AI",20,INK);brand.setLetterSpacing(.14f);brand.setTypeface(null,Typeface.BOLD);titles.addView(brand);
-        status=text("PERSONAL SYSTEM  /  0.2",10,MUTED);status.setPadding(0,dp(5),0,0);titles.addView(status);
+        status=text("PERSONAL SYSTEM  /  "+BuildConfig.VERSION_NAME,10,MUTED);status.setPadding(0,dp(5),0,0);titles.addView(status);
         header.addView(titles,new LinearLayout.LayoutParams(0,dp(58),1));
+        header.addView(button("Update",this::checkForUpdate),new LinearLayout.LayoutParams(dp(72),dp(42)));
         header.addView(button("Settings",this::settings),new LinearLayout.LayoutParams(dp(85),dp(42)));root.addView(header);
         orb=new OrbView(this);root.addView(orb,new LinearLayout.LayoutParams(-1,dp(90)));
         TextView greeting=text("At your service, Sir.",24,INK);greeting.setGravity(Gravity.CENTER);greeting.setTypeface(null,Typeface.BOLD);root.addView(greeting);
@@ -150,6 +152,8 @@ public class MainActivity extends Activity {
             try{JSONObject s=BrainClient.request(prefs,"/v1/status",null);String result=s.optBoolean("model_ready")?"Sir, connected. Model: "+s.optString("model"):"Sir, KITTY connected; start the llama.cpp model server with alias "+s.optString("model")+".";main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setMessage(result).setPositiveButton("OK",null).show();});}
             catch(Exception e){main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setMessage("Sir, connection failed. Save your settings first, then check the laptop server and token.").setPositiveButton("OK",null).show();});}
         })));
+        form.addView(button("Check for app updates",this::checkForUpdate));
+        form.addView(text("KITTY checks the signed-release manifest over HTTPS. Android will ask you to confirm the download and installation; your chats and pairing settings stay on the phone.",11,MUTED));
         form.addView(button("Grant microphone, contacts and call access",()->{
             ArrayList<String> wanted=new ArrayList<>(Arrays.asList(Manifest.permission.RECORD_AUDIO,Manifest.permission.READ_CONTACTS,Manifest.permission.CALL_PHONE));if(Build.VERSION.SDK_INT>=33)wanted.add(Manifest.permission.POST_NOTIFICATIONS);
             wanted.removeIf(p->checkSelfPermission(p)==PackageManager.PERMISSION_GRANTED);if(!wanted.isEmpty())requestPermissions(wanted.toArray(new String[0]),24);else Toast.makeText(this,"These permissions are already granted, Sir.",Toast.LENGTH_LONG).show();
@@ -173,6 +177,31 @@ public class MainActivity extends Activity {
                 controller.sync();if(!prefs.speak())controller.speaker.stop();dialog.dismiss();Toast.makeText(this,"Settings saved, Sir.",Toast.LENGTH_SHORT).show();
             }catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}
         }));dialog.show();
+    }
+    private void checkForUpdate(){
+        Toast.makeText(this,"Checking for a KITTY update…",Toast.LENGTH_SHORT).show();
+        worker.execute(()->{
+            try{
+                AppUpdater.UpdateInfo info=AppUpdater.fetch(UPDATE_MANIFEST);
+                main.post(()->showUpdateResult(info));
+            }catch(Exception e){
+                main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setTitle("Update check failed").setMessage("Sir, I couldn't reach the update server. Check your internet connection and try again.\n\n"+e.getMessage()).setPositiveButton("OK",null).show();});
+            }
+        });
+    }
+    private void showUpdateResult(AppUpdater.UpdateInfo info){
+        if(isFinishing()||isDestroyed())return;
+        if(!info.isNewerThan(BuildConfig.VERSION_CODE)){
+            new AlertDialog.Builder(this).setTitle("KITTY is up to date").setMessage("You are running KITTY "+BuildConfig.VERSION_NAME+" (build "+BuildConfig.VERSION_CODE+").").setPositiveButton("OK",null).show();
+            return;
+        }
+        StringBuilder message=new StringBuilder("KITTY ").append(info.versionName.isEmpty()?info.latestVersionCode:info.versionName).append(" is ready.\n\n");
+        if(!info.releaseNotes.isEmpty())message.append(info.releaseNotes).append("\n\n");
+        message.append("Android will open the download page so you can review and confirm the install.");
+        new AlertDialog.Builder(this).setTitle("Update available").setMessage(message.toString()).setNegativeButton("Later",null).setPositiveButton("Download",(d,w)->{
+            try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(info.downloadUrl)));}
+            catch(Exception e){Toast.makeText(this,"No browser can open the update link, Sir.",Toast.LENGTH_LONG).show();}
+        }).show();
     }
     private void chooseVoice(){
         List<Voice> voices=controller.speaker.voices();

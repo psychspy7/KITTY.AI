@@ -2,6 +2,10 @@ plugins { id 'com.android.application' }
 android {
     namespace 'com.kitty.ai'
     compileSdk 35
+    def releaseKeystorePath = System.getenv('KITTY_KEYSTORE_PATH')
+    def releaseStorePassword = System.getenv('KITTY_STORE_PASSWORD')
+    def releaseKeyAlias = System.getenv('KITTY_KEY_ALIAS')
+    def releaseKeyPassword = System.getenv('KITTY_KEY_PASSWORD')
     defaultConfig {
         applicationId 'com.kitty.ai'
         minSdk 29
@@ -12,7 +16,22 @@ android {
     }
     buildFeatures { aidl true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    buildTypes { release { minifyEnabled false } }
+    signingConfigs {
+        release {
+            if (releaseKeystorePath) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (releaseKeystorePath) signingConfig signingConfigs.release
+        }
+    }
     packaging { jniLibs { useLegacyPackaging true } }
     lint { abortOnError true }
 }

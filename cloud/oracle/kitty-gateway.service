@@ -1,0 +1,16 @@
+[Unit]
+Description=KITTY phone gateway
+After=network-online.target kitty-model.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kitty-ai
+ExecStart=/opt/kitty-ai/.venv/bin/python /opt/kitty-ai/server/kitty.py --home /opt/kitty-ai/data serve --bind 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
