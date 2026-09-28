@@ -2,6 +2,8 @@
 
 **Updating an existing installation? Start with [the 0.2 update guide](docs/UPDATE_0_2.md).** It covers preserving data, APK signing migration, offline voice and the optional smaller model.
 
+[Recorded 0.2 verification and signed APK checksum](docs/validation/RELEASE_0_2.md): 33 Python tests, 20 Android tests, Android 15 emulator flows and real 4B/2B model streaming passed. Physical-phone audio and performance still need owner testing.
+
 
 [![Verify KITTY](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml/badge.svg)](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml)
 
@@ -13,7 +15,7 @@ KITTY is an early personal-use Android assistant with local phone commands and a
 
 <img src="docs/images/kitty-welcome.png" width="300" alt="KITTY AI running in an Android 15 emulator">
 
-Actual Android emulator screenshot. [Recorded alpha verification](docs/validation/ALPHA_0_1.md).
+Earlier alpha emulator screenshot. [Recorded alpha verification](docs/validation/ALPHA_0_1.md); [current 0.2 verification](docs/validation/RELEASE_0_2.md).
 
 ## Current test build
 
