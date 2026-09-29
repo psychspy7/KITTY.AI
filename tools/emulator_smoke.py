@@ -232,6 +232,12 @@ def main():
                 time.sleep(.2)
             assert any(m["text"] == "emulator pairing works" for m in server.brain.store.memories()), "Phone did not save a gateway memory"
             d.expect("Sir,")
+            # Pre-pair commands belong only to the phone. Verify they were not
+            # uploaded to a server paired later, then check a post-pair event.
+            with server.brain.store.db() as db:
+                assert db.execute("SELECT COUNT(*) FROM turns WHERE input='battery'").fetchone()[0]==0, "Pre-pair archive crossed a pairing boundary"
+            d.send("battery")
+            d.expect("Sir, your phone is at")
             deadline=time.monotonic()+8
             while time.monotonic()<deadline:
                 with server.brain.store.db() as db:

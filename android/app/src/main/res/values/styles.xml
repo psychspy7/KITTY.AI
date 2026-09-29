@@ -8,6 +8,13 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">#0A1113</item>
+        <item name="android:alertDialogTheme">@style/KittyDialog</item>
+    </style>
+    <style name="KittyDialog" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">#152126</item>
+        <item name="android:colorAccent">#B7E6C8</item>
+        <item name="android:textColorPrimary">#F3F5EF</item>
+        <item name="android:textColorSecondary">#A9C0BC</item>
     </style>
     <string name="accessibility_description">KITTY uses accessibility only for commands you give, such as tap Send, scroll, go back, or lock screen. It inspects the current screen locally to find a matching control. Screen contents are not sent to the laptop. You can disable this service anytime in Android Settings.</string>
 </resources>
