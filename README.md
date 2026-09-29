@@ -1,8 +1,10 @@
-# KITTY AI 0.2
+# KITTY AI v0.3
 
-**Updating an existing installation? Start with [the 0.2 update guide](docs/UPDATE_0_2.md).** It covers preserving data, APK signing migration, offline voice and the optional smaller model.
+**New to KITTY? Follow the [v0.3 beginner guide](docs/START_HERE_V03.md) for Windows, Vivo, wireless HTTPS, guest invitations, offline speech, Turso, web research and updates.** A production-signed v0.3 release requires the retained signing key and a successful release workflow; CI's debug APK is for testing.
 
-[Recorded 0.2 verification and signed APK checksum](docs/validation/RELEASE_0_2.md): 33 Python tests, 20 Android tests, Android 15 emulator flows and real 4B/2B model streaming passed. Physical-phone audio and performance still need owner testing.
+**Updating an existing installation? Start with [the v0.3 beginner guide](docs/START_HERE_V03.md).** It explains preserving data and checking the original APK signing key.
+
+[Recorded 0.2 verification](docs/validation/RELEASE_0_2.md) covers the previous release. Check the [latest workflow](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml) for v0.3 build, emulator and APK artifacts. Physical-phone audio and speed still need a real Vivo test.
 
 
 [![Verify KITTY](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml/badge.svg)](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml)
@@ -11,7 +13,7 @@
 
 KITTY is an early personal-use Android assistant with local phone commands and a laptop-hosted language model. Virat created the KITTY project. Her personality is female, candid, witty, occasionally darkly humorous, and addresses her owner as **Sir**. No paid AI API key is required.
 
-**Start here: [Windows + Android setup](docs/SETUP_WINDOWS.md)** · [Cloud VM setup](cloud/oracle/README.md) · [Turso memory backend](docs/TURSO.md) · [App updates](docs/UPDATES_AND_RELEASES.md) · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
+**Start here: [v0.3 Windows + Android setup](docs/START_HERE_V03.md)** · [Cloud VM setup](cloud/oracle/README.md) · [Turso memory backend](docs/TURSO.md) · [App updates](docs/UPDATES_AND_RELEASES.md) · [Personalization and training](docs/TRAINING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing and limitations](docs/QA.md)
 
 <img src="docs/images/kitty-welcome.png" width="300" alt="KITTY AI running in an Android 15 emulator">
 
@@ -22,11 +24,13 @@ Earlier alpha emulator screenshot. [Recorded alpha verification](docs/validation
 | Feature | Implemented behavior |
 | --- | --- |
 | Voice and chat | Streamed text, sentence-by-sentence speech, Stop, and imported Vosk for offline tap-to-talk / “Hey Kitty” |
-| Apps and YouTube | Opens installed apps and YouTube search results; select a visible result to play it |
+| Apps and YouTube | Opens installed apps and YouTube search results; can select a numbered identifiable visible video with Accessibility |
 | Calls | Resolves contacts on the phone; dialer by default, optional direct calling; asks when names/numbers are ambiguous |
 | WhatsApp | Opens an addressed draft; an explicit `Hey Kitty, tap Send` can press a unique visible Send control |
 | Screen control | Accessibility for labels, typing and scrolling; optional Shizuku for navigation and coordinate taps |
-| Internet | Browser searches and live, attributed Open-Meteo weather; no general web-reading agent yet |
+| Internet | Browser search and live weather; optional Brave Search API excerpts and source links via `research …` |
+| Wireless guests | Tailscale Funnel HTTPS to the laptop gateway, with expiring guest tokens and private session history |
+| Cloud copy | Durable local outbox to Turso if configured; a network delay does not block each reply |
 | Personalization | Virat creator identity, editable personality, saved chat/feedback, explicit memory, retrieval and reviewed export |
 
 This is a starting point for months of real-device testing. It does not yet have general autonomous screen planning, verified WhatsApp delivery, a low-power wake-word engine, or universal administrator/root access. Android permissions remain under your control. Model responses are conversation; only supported explicit user commands trigger phone actions.
@@ -48,16 +52,16 @@ The downloader resolves and records the exact model revision and SHA-256 on firs
 ## Setup sequence
 
 1. Download this repository and install Python 3.11+ on your laptop.
-2. Run `SETUP_KITTY.bat`, then `DOWNLOAD_MODEL.bat`.
+2. Run `SETUP_KITTY.bat`, then `DOWNLOAD_FAST_MODEL.bat` for this 8 GB laptop.
 3. Extract a compatible official llama.cpp Windows runtime into `runtime/`.
-4. Run `START_MODEL.bat` and `START_KITTY.bat`; keep both windows open.
+4. Run `START_DEMO_V03.bat`; keep both windows open.
 5. Install the supplied signed test APK. For source builds, `KITTY-AI-debug-apk` is available from successful [Verify KITTY runs](https://github.com/psychspy7/KITTY.AI/actions/workflows/verify.yml); their temporary keys are not interchangeable with the retained signing key. See the update guide before replacing an existing installation.
-6. Connect by USB with `adb reverse tcp:8765 tcp:8765`; enter the local URL and pairing token in KITTY Settings.
+6. For wireless use, connect the laptop gateway to Tailscale Funnel HTTPS; enter that URL and a pairing token in KITTY Settings.
 7. Approve permissions for the features you want, and import the offline speech ZIP for continuous listening.
 
 To keep KITTY available when the laptop is off, follow the [Oracle Cloud VM guide](cloud/oracle/README.md). The Android header's **Update** button follows the signed-release process in [UPDATES_AND_RELEASES.md](docs/UPDATES_AND_RELEASES.md).
 
-Follow the [full setup guide](docs/SETUP_WINDOWS.md) for exact commands, downloads and troubleshooting. Start with `battery`, `open YouTube`, `weather in Delhi`, and `remember that I prefer short replies`.
+Follow the [v0.3 setup guide](docs/START_HERE_V03.md) for exact commands, downloads and troubleshooting. Start with `battery`, `open YouTube`, `weather in Delhi`, and `remember that I prefer short replies`.
 
 ## Verification
 

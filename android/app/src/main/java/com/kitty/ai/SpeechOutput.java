@@ -17,7 +17,7 @@ final class SpeechOutput {
     SpeechOutput(Context c){
         prefs=new Prefs(c);audio=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE);
         AudioAttributes attrs=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
-        focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK).setAudioAttributes(attrs).setOnAudioFocusChangeListener(value->{if(value<0)stop();},main).build();
+        focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attrs).setOnAudioFocusChangeListener(value->{if(value<0)stop();},main).build();
         tts=new TextToSpeech(c,code->main.post(()->{ready=code==TextToSpeech.SUCCESS;failed=!ready;if(ready){ready=Speech.configure(tts,prefs);failed=!ready;tts.setAudioAttributes(attrs);}if(ready){while(!waiting.isEmpty())enqueue(waiting.removeFirst());}else{waiting.clear();issue="Install an offline TTS voice in Android settings";}finish();changed.run();}));
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){public void onStart(String id){}public void onDone(String id){main.post(()->complete(id));}public void onError(String id){onDone(id);}public void onStop(String id,boolean interrupted){onDone(id);}});
     }
@@ -31,6 +31,8 @@ final class SpeechOutput {
         issue="";
         active(true);String id=generation+"-"+UUID.randomUUID();utterances.add(id);
         if(tts.speak(text.substring(0,Math.min(3500,text.length())),TextToSpeech.QUEUE_ADD,null,id)==TextToSpeech.ERROR)complete(id);
+        int own=generation;
+        main.postDelayed(()->{if(own==generation&&utterances.contains(id)){issue="Speech engine stalled; tap to talk to retry";stop();changed.run();}},120000);
     }
     private void complete(String id){utterances.remove(id);finish();}
     void end(){open=false;finish();}

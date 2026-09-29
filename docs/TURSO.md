@@ -1,6 +1,6 @@
 # Turso cloud memory for KITTY
 
-KITTY still works with ordinary local SQLite by default. Turso is an optional cloud backend for the gateway's memories, chat history, feedback, and indexed documents. The gateway keeps a local Turso replica and pushes changes to the cloud, so normal replies do not wait for a remote database request.
+KITTY v0.3 keeps `data/kitty.sqlite3` as its primary local SQLite database. When Turso is configured, a durable outbox records every change in that same transaction, and a background worker pushes those changes from a separate Turso replica. Normal replies do not wait for the internet. It is an owner-controlled backup/mirror for one active gateway, not a multi-writer database or model training job.
 
 Turso credentials belong only on the gateway machine. Do not put the database token in the Android app, GitHub repository, APK, or a chat message.
 
@@ -12,7 +12,7 @@ Install the optional Python package in the repository environment:
 python -m pip install -r requirements-turso.txt
 ```
 
-Create a Turso database and token using the Turso CLI or dashboard, then set both variables in the same PowerShell window before starting KITTY:
+Create a Turso database and token using its dashboard. Copy `cloud/oracle/turso.env.example` into `data/secrets.env` and edit it using Notepad (no quotation marks). Use this file for the new v0.3 launcher so both doctor and the gateway see the same secrets. Alternately set both variables in the same PowerShell window:
 
 ```powershell
 $env:TURSO_DATABASE_URL = "libsql://YOUR_DATABASE.turso.io"
@@ -21,7 +21,7 @@ python server/kitty.py --home data doctor
 python server/kitty.py --home data serve
 ```
 
-The doctor output should include `database turso-sync`. KITTY uses `data/kitty.turso.sqlite3` for this replica and leaves the old `data/kitty.sqlite3` untouched. This protects the old local history while you verify the cloud database.
+Doctor shows `database turso-sync`. KITTY v0.3 writes `data/kitty.sqlite3` immediately and uses `data/cloud-replica.db` for its cloud worker. The Android System status screen reports queued operations. Run `py -3 server\kitty.py sync-turso` to wait up to 15 seconds for the queue to clear. A healthy connection says `synced` and `0 pending`.
 
 ## What is stored
 
@@ -36,16 +36,16 @@ The model weights, pairing token, Android permissions, microphone model, and pho
 
 ## Existing data
 
-KITTY does not copy the old SQLite file automatically because silently merging histories can create duplicates or overwrite newer corrections. Use the existing server export/import commands after you have tested the new replica:
+An older v0.2 configuration may have stored data in `data/kitty.turso.sqlite3`. **Make a copy of your entire `data` folder before starting v0.3.** Do not delete the old replica. With the old Turso credentials in `data/secrets.env`, stop the gateway and run `py -3 server\kitty.py migrate-legacy-turso` once. This pulls the old replica and merges missing records into `kitty.sqlite3` without overwriting local duplicates. Memory IDs may be renumbered if they collide. Keep the copy of `data`. `export-feedback` exports approved examples for later manual training, not a complete backup:
 
 ```powershell
 python server/kitty.py --home data export-feedback data/approved-training.jsonl
 ```
 
-For a full history migration, keep the old `kitty.sqlite3` as a backup and migrate it deliberately after confirming the Turso database is reachable. The `sync-turso` command pushes pending replica writes:
+The `sync-turso` command pushes pending v0.3 writes:
 
 ```powershell
 python server/kitty.py --home data sync-turso
 ```
 
-If Turso is unavailable, the local replica remains readable and new writes stay local until the next successful push. Removing both `TURSO_*` variables returns KITTY to the original SQLite backend.
+If Turso is unavailable, writes continue locally and retry in the background. Do not run two active gateway instances against one Turso database; there is no conflict resolution. Removing both `TURSO_*` variables keeps the same local SQLite database and pauses cloud mirroring.

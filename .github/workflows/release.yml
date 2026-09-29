@@ -19,6 +19,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - name: Validate exact version tag and source
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          test "$(git describe --tags --exact-match)" = "$RELEASE_TAG"
+          VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle)
+          test "v$VERSION_NAME" = "$RELEASE_TAG"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tests -q
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -37,12 +52,13 @@ jobs:
           KITTY_STORE_PASSWORD: ${{ secrets.KITTY_STORE_PASSWORD }}
           KITTY_KEY_ALIAS: ${{ secrets.KITTY_KEY_ALIAS }}
           KITTY_KEY_PASSWORD: ${{ secrets.KITTY_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon clean assembleRelease
+        run: ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleRelease
       - name: Prepare release metadata
         id: metadata
         run: |
           mkdir -p release-assets
           cp android/app/build/outputs/apk/release/app-release.apk release-assets/KITTY-AI-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs release-assets/KITTY-AI-release.apk
           sha256sum release-assets/KITTY-AI-release.apk | cut -d' ' -f1 > release-assets/sha256.txt
           VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle)
           VERSION_CODE=$(sed -n "s/.*versionCode \([0-9]*\).*/\1/p" android/app/build.gradle)
@@ -63,22 +79,29 @@ jobs:
           VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
           VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
           SHA256: ${{ steps.metadata.outputs.sha256 }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
+          git fetch origin main
+          git checkout -B main origin/main
           python - <<'PY'
           import json, os
           from pathlib import Path
+          path=Path("release/update.json")
+          current=json.loads(path.read_text())
+          if current["latest_version_code"] >= int(os.environ["VERSION_CODE"]):
+              raise SystemExit("Release code must increase above the current public manifest")
           data = {
               "latest_version_code": int(os.environ["VERSION_CODE"]),
               "version_name": os.environ["VERSION_NAME"],
-              "download_url": "https://github.com/psychspy7/KITTY.AI/releases/latest/download/KITTY-AI-release.apk",
+              "download_url": "https://github.com/psychspy7/KITTY.AI/releases/download/"+os.environ["RELEASE_TAG"]+"/KITTY-AI-release.apk",
               "sha256": os.environ["SHA256"],
               "release_notes": "See the GitHub release notes for this build.",
               "min_supported_version_code": 20,
           }
-          Path("release/update.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
           PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add release/update.json
-          git commit -m "chore: publish update manifest ${VERSION_NAME}" || exit 0
+          git commit -m "chore: publish update manifest ${VERSION_NAME}"
           git push origin HEAD:main

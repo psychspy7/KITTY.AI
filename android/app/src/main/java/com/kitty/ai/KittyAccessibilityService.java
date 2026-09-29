@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.os.Bundle;
+import android.graphics.Rect;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +26,23 @@ public class KittyAccessibilityService extends AccessibilityService {
         List<AccessibilityNodeInfo> all=new ArrayList<>();
         collect(root,all,0);
         try {
+            if(action.kind.equals("select_result")){
+                if(!"com.google.android.youtube".contentEquals(root.getPackageName()==null?"":root.getPackageName()))return "Sir, open YouTube search results first, then say ‘Hey Kitty, play the first video’.";
+                List<AccessibilityNodeInfo> targets=new ArrayList<>();
+                for(AccessibilityNodeInfo node:all){
+                    if(!node.isVisibleToUser()||!node.isEnabled()||!node.isClickable())continue;
+                    String desc=node.getContentDescription()==null?"":node.getContentDescription().toString();
+                    String id=node.getViewIdResourceName()==null?"":node.getViewIdResourceName();
+                    Rect bounds=new Rect();node.getBoundsInScreen(bounds);
+                    if(ScreenTargets.isVideo(desc,id,bounds.width(),bounds.height()))targets.add(node);
+                }
+                targets.sort(Comparator.comparingInt((AccessibilityNodeInfo n)->{Rect r=new Rect();n.getBoundsInScreen(r);return r.top;}).thenComparingInt(n->{Rect r=new Rect();n.getBoundsInScreen(r);return r.left;}));
+                List<AccessibilityNodeInfo> unique=new ArrayList<>();Rect last=null;
+                for(AccessibilityNodeInfo node:targets){Rect r=new Rect();node.getBoundsInScreen(r);if(last==null||!Rect.intersects(last,r)){unique.add(node);last=r;}}
+                int index=Integer.parseInt(action.target)-1;
+                if(index<0||index>=unique.size())return "Sir, I can't identify that numbered video on this screen. Scroll the results into view, or say ‘tap’ followed by its exact visible title.";
+                return unique.get(index).performAction(AccessibilityNodeInfo.ACTION_CLICK)?"Sir, selected visible video "+action.target+". Check YouTube for playback.":"Sir, YouTube didn't accept that tap.";
+            }
             if(action.kind.equals("tap")) {
                 List<AccessibilityNodeInfo> targets=new ArrayList<>();
                 for(AccessibilityNodeInfo node:all){
@@ -61,7 +80,8 @@ public class KittyAccessibilityService extends AccessibilityService {
         } finally { for(AccessibilityNodeInfo n:all)n.recycle(); }
     }
     private void collect(AccessibilityNodeInfo node,List<AccessibilityNodeInfo> all,int depth){
-        if(node==null||depth>35||all.size()>=500)return;
+        if(node==null)return;
+        if(depth>35||all.size()>=500){node.recycle();return;}
         all.add(node);
         for(int i=0;i<node.getChildCount();i++)collect(node.getChild(i),all,depth+1);
     }

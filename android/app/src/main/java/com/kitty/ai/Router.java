@@ -15,7 +15,13 @@ public final class Router {
     public static String stripWake(String text) { return text.trim().replaceFirst("(?i)^(?:(?:hey|hi|okay|ok)\\s+)?"+WAKE+"(?=$|[\\s,:.!-])[\\s,:.!-]*", "").trim(); }
     public static Action parse(String original) {
         String s=stripWake(original).replaceFirst("(?i)^(?:please\\s+|can you\\s+|could you\\s+)", "");
-        Matcher m=match("(?:open\\s+(?:youtube|utube)\\s+(?:and\\s+)?(?:play|search)\\s+|play\\s+|(?:search\\s+)?(?:youtube|utube)\\s+(?:for\\s+)?)(.+)",s);
+        Matcher m=match("(?:play|tap|click|open)\\s+(?:the\\s+)?(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\\s+(?:song|video|result)(?:\\s+on\\s+youtube)?[.!]?",s);
+        if(m.matches()){
+            String ordinal=m.group(1).toLowerCase(Locale.ROOT);
+            int index=ordinal.startsWith("first")||ordinal.startsWith("1")?1:ordinal.startsWith("second")||ordinal.startsWith("2")?2:ordinal.startsWith("third")||ordinal.startsWith("3")?3:ordinal.startsWith("fourth")||ordinal.startsWith("4")?4:5;
+            return new Action("select_result",Integer.toString(index),"");
+        }
+        m=match("(?:open\\s+(?:youtube|utube)\\s+(?:and\\s+)?(?:play|search)\\s+|play\\s+|(?:search\\s+)?(?:youtube|utube)\\s+(?:for\\s+)?)(.+)",s);
         if(m.matches()) return new Action("youtube_search",m.group(1).replaceFirst("(?i)\\s+on\\s+(?:youtube|utube)$", "").trim(),"");
         m=match("(?:go\\s+)?(home|back)|(?:open\\s+)?(recent apps)|(?:lock(?: the)? (?:screen|phone))",s);
         if(m.matches()) return new Action("navigation",s.toLowerCase(Locale.ROOT).contains("back")?"back":s.toLowerCase(Locale.ROOT).contains("recent")?"recents":s.toLowerCase(Locale.ROOT).contains("lock")?"lock":"home","");
@@ -48,4 +54,3 @@ public final class Router {
         return null; // Ask for an international number instead of inventing one.
     }
 }
-

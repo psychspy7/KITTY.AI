@@ -1,4 +1,7 @@
 data/
+secrets.env
+guests.json
+cloud-replica.db*
 *.sqlite3*
 *.jsonl.local
 __pycache__/

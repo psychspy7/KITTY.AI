@@ -1,13 +1,13 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#C5B6FF</item>
+        <item name="android:colorAccent">#B7E6C8</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#0C0D12</item>
-        <item name="android:navigationBarColor">#0C0D12</item>
+        <item name="android:statusBarColor">#0A1113</item>
+        <item name="android:navigationBarColor">#0A1113</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowBackground">#0C0D12</item>
+        <item name="android:windowBackground">#0A1113</item>
     </style>
     <string name="accessibility_description">KITTY uses accessibility only for commands you give, such as tap Send, scroll, go back, or lock screen. It inspects the current screen locally to find a matching control. Screen contents are not sent to the laptop. You can disable this service anytime in Android Settings.</string>
 </resources>

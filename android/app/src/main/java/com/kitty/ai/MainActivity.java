@@ -25,11 +25,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    private static final int BG=0xFF0C0D12,CARD=0xFF191A23,INK=0xFFF4F0FF,MUTED=0xFFAAA6B9,ACCENT=0xFFC5B6FF;
+    private static final int BG=0xFF0A1113,CARD=0xFF152126,INK=0xFFF3F5EF,MUTED=0xFF9EB1B2,ACCENT=0xFFB7E6C8;
     private static final String UPDATE_MANIFEST="https://raw.githubusercontent.com/psychspy7/KITTY.AI/main/release/update.json";
     private final ExecutorService worker=Executors.newFixedThreadPool(2);
     private final Handler main=new Handler(Looper.getMainLooper());
     private LinearLayout chat;private ScrollView scroll;private EditText input;private TextView status,heard;private OrbView orb;
+    private TextView connectionStatus;private ProgressBar micMeter;private JSONObject diagnostics;private long checkedAt;
+    private java.io.File pendingApk;private boolean updating;
     private Prefs prefs;private ChatController controller;private Button listen;private VoiceService voice;private boolean bound,visible;
     private final Map<String,TextView> replies=new HashMap<>();private final Set<String> completed=new HashSet<>();
     private final Runnable changed=this::render;
@@ -42,7 +44,7 @@ public class MainActivity extends Activity {
     private String appVersionName(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception e){return "unknown";}}
     private int appVersionCode(){try{return getPackageManager().getPackageInfo(getPackageName(),0).versionCode;}catch(Exception e){return 0;}}
     private int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
-    private GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
+    private GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));d.setStroke(dp(1),0xFF26373A);return d;}
     private TextView text(String value,int size,int color){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);return t;}
     private Button button(String title,Runnable action){Button b=new Button(this);b.setText(title);b.setTextSize(12);b.setAllCaps(false);b.setTextColor(INK);b.setBackground(bg(CARD,12));b.setMinHeight(dp(42));b.setPadding(dp(12),dp(7),dp(12),dp(7));b.setOnClickListener(v->action.run());return b;}
     private void addButton(LinearLayout row,Button b){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);lp.setMargins(dp(3),0,dp(3),0);row.addView(b,lp);}
@@ -58,18 +60,24 @@ public class MainActivity extends Activity {
         setContentView(root);
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
-        TextView brand=text("KITTY AI",20,INK);brand.setLetterSpacing(.14f);brand.setTypeface(null,Typeface.BOLD);titles.addView(brand);
+        TextView brand=text("KITTY AI",23,INK);brand.setLetterSpacing(.09f);brand.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));titles.addView(brand);
         status=text("PERSONAL SYSTEM  /  "+appVersionName(),10,MUTED);status.setPadding(0,dp(5),0,0);titles.addView(status);
         header.addView(titles,new LinearLayout.LayoutParams(0,dp(58),1));
         header.addView(button("Update",this::checkForUpdate),new LinearLayout.LayoutParams(dp(72),dp(42)));
         header.addView(button("Settings",this::settings),new LinearLayout.LayoutParams(dp(85),dp(42)));root.addView(header);
-        orb=new OrbView(this);root.addView(orb,new LinearLayout.LayoutParams(-1,dp(90)));
-        TextView greeting=text("At your service, Sir.",24,INK);greeting.setGravity(Gravity.CENTER);greeting.setTypeface(null,Typeface.BOLD);root.addView(greeting);
-        TextView subtitle=text("A little wit. A mind of your own.",12,MUTED);subtitle.setGravity(Gravity.CENTER);subtitle.setPadding(0,dp(7),0,dp(15));root.addView(subtitle);
+        LinearLayout hero=new LinearLayout(this);hero.setGravity(Gravity.CENTER_VERTICAL);hero.setPadding(dp(18),dp(10),dp(4),dp(10));
+        GradientDrawable gradient=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF213930,0xFF101D24});gradient.setCornerRadius(dp(24));gradient.setStroke(dp(1),0xFF345247);hero.setBackground(gradient);
+        LinearLayout intro=new LinearLayout(this);intro.setOrientation(LinearLayout.VERTICAL);
+        TextView edition=text("PERSONAL INTELLIGENCE  /  03",9,ACCENT);edition.setLetterSpacing(.12f);intro.addView(edition);
+        TextView greeting=text("Your mind,\namplified.",28,INK);greeting.setTypeface(Typeface.create("serif",Typeface.NORMAL));greeting.setPadding(0,dp(7),0,dp(5));intro.addView(greeting);
+        intro.addView(text("At your service, Sir. Created by Virat.",11,MUTED));hero.addView(intro,new LinearLayout.LayoutParams(0,-2,1));
+        orb=new OrbView(this);hero.addView(orb,new LinearLayout.LayoutParams(dp(105),dp(124)));root.addView(hero,new LinearLayout.LayoutParams(-1,dp(148)));
+        connectionStatus=text("○  Brain not checked   ·   SYSTEM STATUS  ↗",11,ACCENT);connectionStatus.setPadding(dp(4),dp(13),0,dp(13));connectionStatus.setMinHeight(dp(46));connectionStatus.setOnClickListener(v->refreshConnection(true));root.addView(connectionStatus);
         heard=text("",11,ACCENT);heard.setMaxLines(2);root.addView(heard);
+        micMeter=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);micMeter.setMax(100);micMeter.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));micMeter.setVisibility(View.GONE);root.addView(micMeter,new LinearLayout.LayoutParams(-1,dp(4)));
         LinearLayout chips=new LinearLayout(this);
         addButton(chips,button("YouTube",()->send("open YouTube")));
-        addButton(chips,button("Weather",()->{input.setText("weather in ");input.setSelection(input.length());input.requestFocus();}));
+        addButton(chips,button("Web",()->{input.setText("research ");input.setSelection(input.length());input.requestFocus();}));
         addButton(chips,button("Memory",()->send("show memories")));
         addButton(chips,button("Stop",()->controller.stop()));root.addView(chips);
         scroll=new ScrollView(this);scroll.setFillViewport(true);
@@ -84,12 +92,13 @@ public class MainActivity extends Activity {
         addButton(bottom,button("Tap to talk",this::microphone));
         listen=button("Hey Kitty: off",this::toggleListening);addButton(bottom,listen);
         addButton(bottom,button("New chat",()->controller.newChat()));root.addView(bottom);
-        bubble("Sir, I'm KITTY. Open Settings to pair my laptop brain. App commands can already work on this phone. Try ‘open YouTube’ or ‘battery’.",false,"","status");
+        bubble("Sir, I'm KITTY. Your phone handles voice and commands; your laptop handles the thinking. Pair in Settings, then try a conversation, ‘weather in Delhi’, or Web research.",false,"","status");
     }
     private void render(){
         if(isDestroyed()||!visible)return;
         status.setText(!controller.busy&&prefs.speak()&&!controller.speaker.issue.isEmpty()?controller.speaker.issue:controller.phase);listen.setText(controller.voiceRunning?"Hey Kitty: on":"Hey Kitty: off");
         heard.setText(controller.voiceRunning?controller.voiceState+(controller.heard.isEmpty()?"":"\nHeard: "+controller.heard):"");
+        micMeter.setVisibility(controller.voiceRunning?View.VISIBLE:View.GONE);micMeter.setProgress(Math.round(controller.micLevel*100));
         orb.active(controller.busy||controller.speaker.active());
         Set<String> ids=new HashSet<>();for(JSONObject t:controller.turns)ids.add(t.optString("id"));
         if(!ids.containsAll(replies.keySet())){chat.removeAllViews();replies.clear();completed.clear();}
@@ -98,18 +107,22 @@ public class MainActivity extends Activity {
             if(body==null){bubble(t.optString("input"),true,"","");body=bubble(t.optString("reply"),false,"",t.optString("mode"));replies.put(id,body);}
             String answer=t.optString("reply");if(answer.isEmpty())answer="Waiting for KITTY…";
             if(!body.getText().toString().equals(answer))body.setText(answer);
+            TextView label=(TextView)((LinearLayout)body.getParent()).getChildAt(0);String mode=t.optString("mode");
+            String detail="KITTY  ·  "+mode.toUpperCase(Locale.ROOT);
+            try{JSONObject meta=new JSONObject(t.optString("metadata","{}"));if(meta.has("first_token_ms"))detail+="  ·  first word "+String.format(Locale.ROOT,"%.1fs",meta.optDouble("first_token_ms")/1000);}catch(Exception ignored){}
+            label.setText(detail);
             if("model".equals(t.optString("mode"))&&completed.add(id))addFeedback((LinearLayout)body.getParent(),id);
         }
         if(controller.voiceRunning)bindVoice();else unbindVoice();
     }
-    @Override protected void onStart(){super.onStart();visible=true;controller.foreground=new WeakReference<>(this);controller.observe(changed);controller.sync();bindVoice();}
+    @Override protected void onStart(){super.onStart();visible=true;controller.foreground=new WeakReference<>(this);controller.observe(changed);controller.sync();bindVoice();if(SystemClock.elapsedRealtime()-checkedAt>30000)refreshConnection(false);}
     @Override protected void onStop(){visible=false;controller.remove(changed);if(controller.foreground.get()==this)controller.foreground.clear();unbindVoice();super.onStop();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);}
     private TextView bubble(String message,boolean user,String id,String mode){
-        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setBackground(bg(user?0xFF29243B:CARD,14));box.setPadding(dp(14),dp(11),dp(14),dp(11));
+        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setBackground(bg(user?0xFF253C34:CARD,18));box.setPadding(dp(16),dp(14),dp(16),dp(14));
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(user?dp(30):0,0,user?0:dp(18),dp(9));chat.addView(box,lp);
         TextView label=text(user?"YOU":"KITTY"+(mode!=null&&mode.equals("local")?"  ·  PHONE":""),9,user?MUTED:ACCENT);label.setLetterSpacing(.14f);box.addView(label);
-        TextView body=text(message,14,INK);body.setTextIsSelectable(true);body.setPadding(0,dp(5),0,0);body.setLineSpacing(dp(2),1.06f);box.addView(body);
+        TextView body=text(message,15,INK);body.setAutoLinkMask(android.text.util.Linkify.WEB_URLS);body.setLinkTextColor(ACCENT);body.setTextIsSelectable(true);body.setPadding(0,dp(7),0,0);body.setLineSpacing(dp(2),1.06f);box.addView(body);
         if(!user&&"model".equals(mode)&&id!=null&&!id.isEmpty())addFeedback(box,id);
         scroll.post(()->scroll.fullScroll(View.FOCUS_DOWN));return body;
     }
@@ -155,13 +168,15 @@ public class MainActivity extends Activity {
         EditText country=field(form,"Country calling code",prefs.country(),false);
         CheckBox spoken=new CheckBox(this);spoken.setText("Speak replies");spoken.setChecked(prefs.speak());form.addView(spoken);
         CheckBox direct=new CheckBox(this);direct.setText("Direct calls after a clear command");direct.setChecked(prefs.directCalls());form.addView(direct);
-        form.addView(text("With direct calls off, KITTY opens the dialer. Internet access is already enabled. Use USB loopback or trusted HTTPS for the laptop connection.",11,MUTED));
+        form.addView(text("Use your Tailscale HTTPS address for wireless access—even on mobile data. The laptop must stay awake. Chats sync to the paired brain and, if configured, Turso; voice audio and screen contents stay on the phone. Share guest tokens, never your owner token.",11,MUTED));
         form.addView(button("Check saved connection",()->worker.execute(()->{
             try{JSONObject s=BrainClient.request(prefs,"/v1/status",null);String result=s.optBoolean("model_ready")?"Sir, connected. Model: "+s.optString("model"):"Sir, KITTY connected; start the llama.cpp model server with alias "+s.optString("model")+".";main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setMessage(result).setPositiveButton("OK",null).show();});}
             catch(Exception e){main.post(()->{if(!isFinishing()&&!isDestroyed())new AlertDialog.Builder(this).setMessage("Sir, connection failed. Save your settings first, then check the laptop server and token.").setPositiveButton("OK",null).show();});}
         })));
         form.addView(button("Check for app updates",this::checkForUpdate));
-        form.addView(text("KITTY checks the signed-release manifest over HTTPS. Android will ask you to confirm the download and installation; your chats and pairing settings stay on the phone.",11,MUTED));
+        form.addView(text("KITTY checks release metadata over HTTPS, then verifies the APK checksum, package, version and signing certificate. Android asks before installing. Updates require the same signing key to preserve your chats.",11,MUTED));
+        form.addView(button("System status & diagnostics",()->refreshConnection(true)));
+        form.addView(button("Open beginner setup guide",()->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/psychspy7/KITTY.AI/blob/main/docs/START_HERE_V03.md")))));
         form.addView(button("Grant microphone, contacts and call access",()->{
             ArrayList<String> wanted=new ArrayList<>(Arrays.asList(Manifest.permission.RECORD_AUDIO,Manifest.permission.READ_CONTACTS,Manifest.permission.CALL_PHONE));if(Build.VERSION.SDK_INT>=33)wanted.add(Manifest.permission.POST_NOTIFICATIONS);
             wanted.removeIf(p->checkSelfPermission(p)==PackageManager.PERMISSION_GRANTED);if(!wanted.isEmpty())requestPermissions(wanted.toArray(new String[0]),24);else Toast.makeText(this,"These permissions are already granted, Sir.",Toast.LENGTH_LONG).show();
@@ -175,7 +190,7 @@ public class MainActivity extends Activity {
         form.addView(button("Download offline English speech model",()->new AlertDialog.Builder(this).setTitle("Try the model that hears you best").setItems(new String[]{"Indian English · 36 MB","US English · 40 MB"},(d,i)->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://alphacephei.com/vosk/models/"+(i==0?"vosk-model-small-en-in-0.4.zip":"vosk-model-small-en-us-0.15.zip"))))).show()));
         form.addView(button(ModelInstaller.installed(this)?"Replace offline speech model":"Import offline speech model ZIP",()->{requestVoiceStop();Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);pick.addCategory(Intent.CATEGORY_OPENABLE);pick.setType("*/*");startActivityForResult(pick,70);}));
         form.addView(button("App permissions & battery settings",()->startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())))));
-        form.addView(text("Voice: use English commands with these models. Hindi speech packs do not enable Hindi wake words or commands yet. General chat can use Hindi/Hinglish through the laptop model. A female speaking voice depends on the voices installed on this phone. No root or device-owner enrollment is performed.",11,MUTED));
+        form.addView(text("Voice: start Hey Kitty here before opening YouTube. Speak ‘Hey Kitty’ clearly, pause, then your command. Keep media volume moderate or use earphones. ‘Play the first video’ selects the first identifiable visible YouTube result, not every layout. If recognition misses you, use Listen now in the microphone notification. English commands only with these packs; Hindi/Hinglish chat remains available through the brain. No raw audio is saved.",11,MUTED));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("KITTY Settings").setView(container).setPositiveButton("Save",null).setNegativeButton("Close",null).create();
         dialog.setOnShowListener(d->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             try {
@@ -183,8 +198,27 @@ public class MainActivity extends Activity {
                 prefs.token(token.getText().toString().trim());prefs.p.edit().putString("url",server).putString("country",cc).putBoolean("speak",spoken.isChecked()).putBoolean("direct_calls",direct.isChecked()).apply();
                 if(direct.isChecked()&&checkSelfPermission(Manifest.permission.CALL_PHONE)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.CALL_PHONE},25);
                 controller.sync();if(!prefs.speak())controller.speaker.stop();dialog.dismiss();Toast.makeText(this,"Settings saved, Sir.",Toast.LENGTH_SHORT).show();
+                refreshConnection(false);
             }catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}
         }));dialog.show();
+    }
+    private void refreshConnection(boolean show){
+        checkedAt=SystemClock.elapsedRealtime();
+        if(prefs.token().isEmpty()){connectionStatus.setText("○  Pair your brain in Settings   ·   SETUP  ↗");if(show)settings();return;}
+        connectionStatus.setText("◌  Checking brain connection…");
+        worker.execute(()->{
+            JSONObject result=null;try{result=BrainClient.request(prefs,"/v1/status",null);}catch(Exception ignored){}
+            final JSONObject data=result;
+            main.post(()->{
+                if(isDestroyed()||isFinishing())return;diagnostics=data;
+                connectionStatus.setText(data==null?"○  Brain offline   ·   Phone commands ready  ↗":(data.optBoolean("model_ready")?"●  Brain ready":"◐  Brain online · model offline")+"   ·   "+data.optString("role","owner").toUpperCase(Locale.ROOT)+"  ↗");
+                if(show){
+                    JSONObject sync=data==null?null:data.optJSONObject("sync");
+                    String description="APP  "+appVersionName()+" · build "+appVersionCode()+"\n\nBRAIN  "+(data==null?"Unreachable. Check URL, token, laptop and tunnel.":data.optString("version")+" · "+(data.optBoolean("model_ready")?"model ready":"start START_MODEL_FAST.bat"))+"\n\nWEB RESEARCH  "+(data!=null&&data.optBoolean("web_ready")?"Configured. Try: research latest space news":"Not configured on brain")+"\n\nCLOUD MEMORY  "+(sync==null?"Unknown":sync.optString("state")+" · "+sync.optInt("pending")+" queued operations")+"\n\nOFFLINE SPEECH  "+(ModelInstaller.installed(this)?"Model installed":"Import a Vosk ZIP in Settings")+"\nMICROPHONE  "+(controller.voiceRunning?controller.voiceState:"Off · start Hey Kitty while KITTY is open")+"\nSCREEN CONTROL  "+(KittyAccessibilityService.instance==null?"Enable Accessibility in Settings":"Connected")+"\n\nTiming shown under replies measures model first-token time, not total speech latency.";
+                    new AlertDialog.Builder(this).setTitle("System status").setMessage(description).setPositiveButton("Done",null).show();
+                }
+            });
+        });
     }
     private void checkForUpdate(){
         Toast.makeText(this,"Checking for a KITTY update…",Toast.LENGTH_SHORT).show();
@@ -205,11 +239,21 @@ public class MainActivity extends Activity {
         }
         StringBuilder message=new StringBuilder("KITTY ").append(info.versionName.isEmpty()?info.latestVersionCode:info.versionName).append(" is ready.\n\n");
         if(!info.releaseNotes.isEmpty())message.append(info.releaseNotes).append("\n\n");
-        message.append("Android will open the download page so you can review and confirm the install.");
-        new AlertDialog.Builder(this).setTitle("Update available").setMessage(message.toString()).setNegativeButton("Later",null).setPositiveButton("Download",(d,w)->{
-            try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(info.downloadUrl)));}
-            catch(Exception e){Toast.makeText(this,"No browser can open the update link, Sir.",Toast.LENGTH_LONG).show();}
+        message.append("KITTY will verify this APK before Android asks you to install it. Keep KITTY open during the download.");
+        new AlertDialog.Builder(this).setTitle("Update available").setMessage(message.toString()).setNegativeButton("Later",null).setPositiveButton("Download & verify",(d,w)->{
+            if(updating)return;updating=true;controller.note("Downloading and verifying update…");
+            worker.execute(()->{try{java.io.File file=AppUpdater.download(getApplicationContext(),info);main.post(()->{updating=false;pendingApk=file;if(!isDestroyed())installUpdate();});}catch(Exception e){main.post(()->{updating=false;if(!isDestroyed())new AlertDialog.Builder(this).setTitle("Update not installed").setMessage(e.getMessage()).setPositiveButton("OK",null).show();});}});
         }).show();
+    }
+    private void installUpdate(){
+        if(pendingApk==null||!pendingApk.exists())return;
+        try{
+            if(!getPackageManager().canRequestPackageInstalls()){
+                new AlertDialog.Builder(this).setTitle("Allow KITTY updates").setMessage("Allow installation from KITTY on the next Android screen, then return here. Every update still needs your confirmation.").setPositiveButton("Open Android settings",(d,w)->startActivityForResult(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())),71)).setNegativeButton("Later",null).show();return;
+            }
+            Uri apk=androidx.core.content.FileProvider.getUriForFile(this,getPackageName()+".updates",pendingApk);
+            startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(apk,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
+        }catch(Exception e){Toast.makeText(this,"Android could not open the verified installer.",Toast.LENGTH_LONG).show();}
     }
     private void chooseVoice(){
         List<Voice> voices=controller.speaker.voices();
@@ -218,6 +262,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
+        if(request==71&&getPackageManager().canRequestPackageInstalls())installUpdate();
         if(request==70&&result==RESULT_OK&&data!=null&&data.getData()!=null){
             Uri uri=data.getData();bubble("Sir, importing the offline model. This may take a moment.",false,"","status");worker.execute(()->{
                 String message;try{ModelInstaller.install(this,uri);message="Sir, offline speech is ready. Tap Hey Kitty to start listening.";}catch(Exception e){message="Sir, model import failed: "+e.getMessage();}

@@ -31,7 +31,7 @@ public final class Actions {
                 case "battery":
                     int level=((BatteryManager)source.getSystemService(Context.BATTERY_SERVICE)).getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
                     reply.accept("Sir, your phone is at "+level+" percent. I'm judging the charger, not you.");return;
-                case "tap":case "type":case "scroll":case "navigation":
+                case "select_result":case "tap":case "type":case "scroll":case "navigation":
                     if(((KittyApp)source.getApplicationContext()).shizuku.tryExecute(a,reply))return;
                     if(KittyAccessibilityService.instance==null){reply.accept("Sir, enable KITTY's Accessibility service in Settings for screen commands.");return;}
                     reply.accept(KittyAccessibilityService.instance.execute(a));return;

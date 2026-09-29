@@ -27,7 +27,7 @@ public final class BrainClient {
     private static Call newCall(Request request){return (request.url().host().equals("127.0.0.1")?LOCAL:HTTP).newCall(request);}
     private static void check(Response r) throws IOException {
         if(r.code()==401)throw new IOException("Pairing token doesn't match, Sir. Check Settings.");
-        if(r.code()==404)throw new IOException("Update the laptop server to KITTY 0.2 and restart it, Sir.");
+        if(r.code()==404)throw new IOException("Update the laptop server to KITTY v0.3 and restart it, Sir.");
         if(!r.isSuccessful()||r.body()==null)throw new IOException("Laptop returned HTTP "+r.code()+", Sir.");
     }
     public static JSONObject request(Prefs p,String path,JSONObject payload) throws Exception {
@@ -40,7 +40,7 @@ public final class BrainClient {
         JSONObject body=new JSONObject().put("text",text).put("session",session).put("request_id",id);
         Call call=newCall(requestFor(p,"/v1/chat/stream",body));
         call.enqueue(new Callback(){
-            public void onFailure(Call c,IOException e){android.util.Log.w("KittyNetwork","Connection failed: "+e.getClass().getSimpleName()+": "+e.getMessage());listener.failed(c.isCanceled()?"Stopped":"Sir, I couldn't reach my laptop brain. Check the USB connection and laptop servers.");}
+            public void onFailure(Call c,IOException e){android.util.Log.w("KittyNetwork","Connection failed: "+e.getClass().getSimpleName());listener.failed(c.isCanceled()?"Stopped":"Sir, I couldn't reach my laptop brain. Check the HTTPS address, internet, pairing and both laptop windows.");}
             public void onResponse(Call c,Response r){
                 try(Response response=r){
                     check(response);BufferedSource s=response.body().source();String kind="";long total=0;boolean done=false;

@@ -18,6 +18,7 @@ final class ChatController {
     final List<JSONObject> turns=new ArrayList<>();private final Set<Runnable> observers=new HashSet<>();
     WeakReference<Activity> foreground=new WeakReference<>(null);
     boolean busy,loaded,voiceRunning;String phase="Ready",voiceState="Off",heard="";
+    float micLevel;
     private JSONObject active;private Call call;private StringBuilder reply=new StringBuilder();private int spoken;private boolean stoppingSpeech;
     private final AtomicBoolean syncing=new AtomicBoolean();
     ChatController(Context app){
@@ -35,7 +36,7 @@ final class ChatController {
         text=text.trim();if(text.equalsIgnoreCase("stop")||text.equalsIgnoreCase("stop talking")){stop();return true;}
         if(!loaded||busy||text.isEmpty()||text.length()>8000){note(busy?"Finish or stop this reply first, Sir.":"Use a message under 8,000 characters, Sir.");return false;}
         speaker.stop();stoppingSpeech=false;JSONObject turn=new JSONObject();
-        try{turn.put("id",UUID.randomUUID().toString()).put("session",prefs.session()).put("input",text).put("reply","").put("mode","pending").put("source",via).put("created",System.currentTimeMillis());}catch(JSONException e){return false;}
+        try{turn.put("id",UUID.randomUUID().toString()).put("session",prefs.session()).put("input",text).put("reply","").put("mode","pending").put("source",via).put("created",System.currentTimeMillis()).put("pairing",store.pairing());}catch(JSONException e){return false;}
         turns.add(turn);active=turn;busy=true;phase="Connecting to laptop";save(turn);changed();
         if(text.matches("(?i)(?:introduce (?:yourself|urself|urslef)|who (?:are (?:you|u)|created (?:you|u)|made (?:you|u))|what is your name)[?.!]*")){
             finish(turn,"Sir, I'm KITTY AI, Virat's personal AI assistant. Virat created the KITTY project; Qwen supplies my underlying language model. I help with conversations, memories and phone commands—with a little wit.","identity");return true;
@@ -48,7 +49,7 @@ final class ChatController {
                 if(active!=turn)return;
                 if(kind.equals("status")){phase=data.optString("phase","Thinking");changed();}
                 else if(kind.equals("token")){reply.append(data.optString("text"));put(turn,"reply",reply.toString());phase="Receiving reply";speakSentences(false);changed();}
-                else if(kind.equals("done")){finish(turn,data.optString("reply"),data.optString("mode","model"));}
+                else if(kind.equals("done")){put(turn,"metadata",data.toString());finish(turn,data.optString("reply"),data.optString("mode","model"));}
             });}
             public void failed(String message){main.post(()->{if(active==turn)finish(turn,reply.length()>0?reply+"\n[Interrupted] "+message:message,"error");});}
         });}catch(Exception e){finish(turn,e.getMessage(),"error");}
@@ -65,7 +66,7 @@ final class ChatController {
         put(turn,"reply",answer==null?"Sir, no reply was returned.":answer);put(turn,"mode",mode);save(turn);
         if(!stoppingSpeech){
             if(mode.equals("model")&&reply.length()>0){speakSentences(true);speaker.end();}
-            else {speaker.say(turn.optString("reply"));}
+            else {speaker.say(mode.equals("web")?"Sir, I've found web results. The excerpts and source links are in your chat.":turn.optString("reply"));}
         }else speaker.end();
         active=null;call=null;busy=false;phase=mode.equals("error")?"Connection needs attention":"Ready";changed();sync();
     }

@@ -17,7 +17,7 @@ final class ShizukuControl {
         }catch(RuntimeException e){KittyApp.chat(app).note("Shizuku could not connect. Check its app, Sir.");}
     }
     private void connect(){try{if(binding||service!=null||!Shizuku.pingBinder()||Shizuku.checkSelfPermission()!=PackageManager.PERMISSION_GRANTED)return;binding=true;
-        Shizuku.bindUserService(new Shizuku.UserServiceArgs(new ComponentName(app,InputUserService.class)).daemon(false).processNameSuffix("input").debuggable(false).version(20),connection);
+        Shizuku.bindUserService(new Shizuku.UserServiceArgs(new ComponentName(app,InputUserService.class)).daemon(false).processNameSuffix("input").debuggable(false).version(30),connection);
         main.postDelayed(()->{if(service==null)binding=false;},8000);
     }catch(RuntimeException e){binding=false;}}
     boolean tryExecute(Action action,Consumer<String> reply){
