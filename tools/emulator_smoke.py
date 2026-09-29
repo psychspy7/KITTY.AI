@@ -88,6 +88,22 @@ class Device:
             time.sleep(.25)
         raise AssertionError("Missing UI text: " + fragment)
 
+    def expect_in_history(self, fragment):
+        """Inspect archived turns even when the chat has scrolled past them."""
+        for attempt in range(6):
+            root = self.tree("history")
+            if any(fragment in n.get("text", "") for n in root.iter("node")):
+                print("PASS: archived " + fragment, flush=True)
+                return
+            scrolls = [n for n in root.iter("node") if n.get("scrollable") == "true"]
+            if scrolls:
+                x1, y1, x2, y2 = self.bounds(scrolls[-1])
+                x = (x1 + x2) // 2
+                self.adb("shell", "input", "swipe", str(x), str(y1 + (y2-y1)//4),
+                         str(x), str(y2 - (y2-y1)//4), "350")
+            time.sleep(.4)
+        raise AssertionError("Missing archived UI text: " + fragment)
+
     def screenshot(self, name):
         (self.output / (name+".png")).write_bytes(self.adb("exec-out", "screencap", "-p", binary=True))
 
@@ -248,7 +264,8 @@ def main():
             d.adb("shell", "am", "force-stop", PACKAGE)
             d.adb("shell", "am", "start", "-W", "-n", activity, "--es", "command", "battery", "--es", "action_nonce", "invalid-nonce")
             fresh = d.expect("At your service, Sir.")
-            d.expect("emulator pairing works")
+            d.expect("Sir, your phone is at")
+            d.expect_in_history("emulator pairing works")
             time.sleep(1)
             with server.brain.store.db() as db:
                 assert db.execute("SELECT COUNT(*) FROM turns WHERE input='battery'").fetchone()[0]==count, "Exported activity executed an untrusted action extra"
