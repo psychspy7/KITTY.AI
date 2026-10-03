@@ -50,6 +50,10 @@ jobs:
       - name: Build, unit tests and lint
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
+      - name: Record APK identity for Google OAuth setup
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk > android/app/build/reports/apk-certificate.txt
+          cat android/app/build/reports/apk-certificate.txt
       - uses: actions/upload-artifact@v4
         with:
           name: KITTY-AI-debug-apk
@@ -65,6 +69,7 @@ jobs:
           path: |
             android/app/build/reports/tests/
             android/app/build/reports/lint-results-debug.html
+            android/app/build/reports/apk-certificate.txt
   emulator:
     needs: android
     runs-on: ubuntu-latest

@@ -230,6 +230,12 @@ def main():
             d.tap("Settings")
             d.expect("Laptop server URL")
             d.screenshot("03-settings")
+            d.tap("Sign in with Google · Cloud KITTY")
+            d.expect("Connect KITTY")
+            d.expect("KITTY service HTTPS address")
+            d.screenshot("03-google-setup")
+            d.tap("Cancel")
+            d.expect("Laptop server URL")
             root = d.tree("pairing")
             fields = [n for n in root.iter("node") if n.get("class") == "android.widget.EditText"]
             if len(fields) != 3:
@@ -303,7 +309,7 @@ def main():
             server.server_close()
             server = None
             d.send("hello again")
-            d.expect("couldn't reach my laptop brain")
+            d.expect("couldn't reach the KITTY server")
             d.send("battery")
             d.expect("Sir, your phone is at")
             d.send("introduce yourself");d.expect("created by Virat")

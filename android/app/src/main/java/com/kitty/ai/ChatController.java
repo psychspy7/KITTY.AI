@@ -19,7 +19,7 @@ final class ChatController {
     WeakReference<Activity> foreground=new WeakReference<>(null);
     boolean busy,loaded,voiceRunning;String phase="Ready",voiceState="Off",heard="";
     float micLevel;
-    private JSONObject active;private Call call;private StringBuilder reply=new StringBuilder();private int spoken;private boolean stoppingSpeech;
+    private JSONObject active;private BrainClient.Session activeAccount;private Call call;private StringBuilder reply=new StringBuilder();private int spoken;private boolean stoppingSpeech;
     private int viewGeneration;
     private final AtomicBoolean syncing=new AtomicBoolean();
     ChatController(Context app){
@@ -40,7 +40,7 @@ final class ChatController {
         if(prefs.cloud()&&prefs.accountId().isEmpty()){note("Sign in with Google in Settings first, Sir.");return false;}
         speaker.stop();stoppingSpeech=false;JSONObject turn=new JSONObject();
         try{turn.put("id",UUID.randomUUID().toString()).put("session",prefs.session()).put("input",text).put("reply","").put("mode","pending").put("source",via).put("created",System.currentTimeMillis()).put("pairing",store.pairing());}catch(JSONException e){return false;}
-        turns.add(turn);active=turn;busy=true;phase=prefs.cloud()?"Connecting to KITTY":"Connecting to laptop";save(turn);changed();
+        turns.add(turn);active=turn;activeAccount=new BrainClient.Session(prefs);busy=true;phase=prefs.cloud()?"Connecting to KITTY":"Connecting to laptop";save(turn);changed();
         if(text.matches("(?i)(?:introduce (?:yourself|urself|urslef)|who (?:are (?:you|u)|created (?:you|u)|made (?:you|u))|what is your name)[?.!]*")){
             finish(turn,"Sir, I'm KITTY AI, created by Virat. I help with conversations, memories and phone commands—with a little wit. "+(prefs.cloud()?"Groq powers my cloud brain.":"Qwen supplies my local language model."),"identity");return true;
         }
@@ -76,15 +76,15 @@ final class ChatController {
             if(mode.equals("model")&&reply.length()>0){speakSentences(true);speaker.end();}
             else {speaker.say(mode.equals("web")?"Sir, I've found web results. The excerpts and source links are in your chat.":turn.optString("reply"));}
         }else speaker.end();
-        active=null;call=null;busy=false;phase=mode.equals("error")?"Connection needs attention":"Ready";changed();sync();
+        active=null;activeAccount=null;call=null;busy=false;phase=mode.equals("error")?"Connection needs attention":"Ready";changed();sync();
     }
     static void put(JSONObject object,String key,Object value){try{object.put(key,value);}catch(JSONException e){throw new IllegalStateException(e);}}
     void stop(){
         stoppingSpeech=true;speaker.stop();
         if(active==null){phase="Stopped speaking";changed();return;}
-        JSONObject turn=active;String id=turn.optString("id");if(call!=null)call.cancel();
-        active=null;call=null;busy=false;put(turn,"reply",turn.optString("reply")+" [Stopped]");put(turn,"mode","cancelled");save(turn);phase="Stopped";changed();
-        BrainClient.Session account=new BrainClient.Session(prefs);network.execute(()->{try{BrainClient.request(account,"/v1/cancel",new JSONObject().put("request_id",id));}catch(Exception ignored){}sync();});
+        JSONObject turn=active;BrainClient.Session account=activeAccount;String id=turn.optString("id");if(call!=null)call.cancel();
+        active=null;activeAccount=null;call=null;busy=false;put(turn,"reply",turn.optString("reply")+" [Stopped]");put(turn,"mode","cancelled");save(turn);phase="Stopped";changed();
+        network.execute(()->{try{BrainClient.request(account,"/v1/cancel",new JSONObject().put("request_id",id));}catch(Exception ignored){}sync();});
     }
     void feedback(String id,int rating,String correction,Runnable saved){
         disk.execute(()->{store.feedback(id,rating,correction);main.post(saved);sync();});
