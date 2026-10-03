@@ -21,6 +21,8 @@ public class PremiumLayoutTest {
     private Object get(MainActivity a,String name) throws Exception {Field f=MainActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(a);}
     private void screenshot(String name) throws Exception {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        Thread.sleep(250); // Allow the rendered surface to present the new frame.
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         Bitmap bitmap=InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();assertNotNull(bitmap);
         File dir=new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getFilesDir(),"qa-layout");assertTrue(dir.exists()||dir.mkdirs());
         try(FileOutputStream out=new FileOutputStream(new File(dir,name+".png"))){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}bitmap.recycle();

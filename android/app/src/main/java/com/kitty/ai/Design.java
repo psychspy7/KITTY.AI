@@ -19,6 +19,7 @@ final class Design {
     LinearLayout column(){LinearLayout l=new LinearLayout(a);l.setOrientation(LinearLayout.VERTICAL);return l;}
     LinearLayout row(){LinearLayout l=new LinearLayout(a);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(android.view.Gravity.CENTER_VERTICAL);return l;}
     void gap(LinearLayout parent,int n){View v=new View(a);parent.addView(v,new LinearLayout.LayoutParams(1,dp(n)));}
+    void horizontalGap(LinearLayout parent,int n){View v=new View(a);parent.addView(v,new LinearLayout.LayoutParams(dp(n),1));}
     Button button(String label,boolean primary,Runnable action){
         Button b=new Button(a);b.setText(label);b.setAllCaps(false);b.setTextSize(14);b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextColor(primary?BG:TEXT);b.setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x26FFFFFF),surface(primary?GOLD:CARD,16),null));b.setPadding(dp(14),dp(8),dp(14),dp(8));b.setMinHeight(dp(50));b.setOnClickListener(v->action.run());return b;
     }

@@ -52,7 +52,7 @@ final class CloudUi {
                     });
                 }catch(Exception e){signingIn=false;message("Google returned an unsupported credential. Update Google Play services and retry.");}
             }
-            public void onError(GetCredentialException e){signingIn=false;if(e instanceof GetCredentialCancellationException)return;message("Google sign-in is unavailable. Check your Google account and Play services. Virat may need to finish Firebase setup.");}
+            public void onError(GetCredentialException e){signingIn=false;if(e instanceof GetCredentialCancellationException)return;if(e instanceof NoCredentialException){message("No Google account is available for sign-in. Add a Google account in Android Settings, update Google Play services and retry. Virat should also check the APK certificate in Firebase.");return;}message("Google sign-in is unavailable. Check your Google account and Play services. Virat may need to finish Firebase setup.");}
         });
     }
     void settings(){
