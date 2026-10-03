@@ -14,7 +14,8 @@ public final class Router {
     }
     public static String stripWake(String text) { return text.trim().replaceFirst("(?i)^(?:(?:hey|hi|okay|ok)\\s+)?"+WAKE+"(?=$|[\\s,:.!-])[\\s,:.!-]*", "").trim(); }
     public static Action parse(String original) {
-        String s=stripWake(original).replaceFirst("(?i)^(?:please\\s+|can you\\s+|could you\\s+)", "");
+        String s=stripWake(original).replaceFirst("(?i)^(?:okay|ok)[ ,]+", "").replaceFirst("(?i)^(?:please\\s+|can you\\s+|could you\\s+)", "");
+        if(s.matches("(?i)(?:play|tap|open) (?:that|this) (?:video|song)[.!]?"))return new Action("select_result","focused","");
         Matcher m=match("(?:play|tap|click|open)\\s+(?:the\\s+)?(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th)\\s+(?:song|video|result)(?:\\s+on\\s+youtube)?[.!]?",s);
         if(m.matches()){
             String ordinal=m.group(1).toLowerCase(Locale.ROOT);

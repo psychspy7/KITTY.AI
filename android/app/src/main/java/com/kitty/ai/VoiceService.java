@@ -22,7 +22,7 @@ public class VoiceService extends Service implements RecognitionListener {
     private ChatController chat;private Model model;private Recognizer recognizer;private LocalSpeechEngine speech;
     private AudioManager audio;private AudioFocusRequest listeningFocus;private boolean ducked,silenced;
     private final Runnable releaseFocus=()->{if(audio!=null&&ducked){audio.abandonAudioFocusRequest(listeningFocus);ducked=false;}};
-    private boolean stopping,starting,destroyed,once,submitted,paused,pendingArm,foreground;
+    private boolean stopping,starting,destroyed,once,submitted,paused,pendingArm,foreground,followUp;
     private long partialAt;private String shown="";
     @Override public void onCreate(){
         super.onCreate();chat=KittyApp.chat(this);
@@ -98,6 +98,7 @@ public class VoiceService extends Service implements RecognitionListener {
         if(hold!=paused){paused=hold;speech.setPause(hold);speech.reset();}
         if(hold){state(chat.speaker.active()?"Speaking · microphone paused":"Thinking · microphone paused",null);return;}
         if(once&&submitted){stopListening();return;}
+        if(followUp&&!once&&new Prefs(this).p.getBoolean("follow_up",true)){followUp=false;pendingArm=true;duck();}
         if(pendingArm){pendingArm=false;gate.arm(SystemClock.elapsedRealtime());main.postDelayed(()->{
             if(!destroyed&&!chat.busy&&!chat.speaker.active()&&!gate.armed(SystemClock.elapsedRealtime())){if(once){chat.note("I didn't hear a command. Tap to talk again, Sir.");stopListening();}else state("Listening · say Hey Kitty",null);}
         },10500);}
@@ -124,7 +125,7 @@ public class VoiceService extends Service implements RecognitionListener {
                 }else {chat.note("Open KITTY to run that command, or allow notifications in Settings, Sir.");chat.speaker.say("Sir, open KITTY to run that command.");}
                 audioState();return;
             }
-            chat.send(activity!=null?activity:this,command,"voice");audioState();
+            followUp=chat.send(activity!=null?activity:this,command,"voice");audioState();
         }catch(Exception e){chat.note("I couldn't read that speech result. Please retry, Sir.");audioState();}
     }
     @Override public void onResult(String text){main.post(()->heard(text));}

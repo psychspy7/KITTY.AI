@@ -7,6 +7,7 @@ on:
       - 'tests/**'
       - '*.bat'
       - 'requirements-turso.txt'
+      - 'requirements-cloud.txt'
       - 'docs/START_HERE_V03.md'
       - 'tools/**'
       - '.github/workflows/verify.yml'
@@ -17,6 +18,7 @@ on:
       - 'tests/**'
       - '*.bat'
       - 'requirements-turso.txt'
+      - 'requirements-cloud.txt'
       - 'docs/START_HERE_V03.md'
       - 'tools/**'
       - '.github/workflows/verify.yml'
@@ -34,7 +36,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install -r requirements-turso.txt
+      - run: python -m pip install -r requirements-turso.txt -r requirements-cloud.txt
       - run: python -m unittest discover -s tests -v
   android:
     runs-on: ubuntu-latest

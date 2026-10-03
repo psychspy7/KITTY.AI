@@ -17,5 +17,8 @@ public class RouterTest {
     @Test public void weatherGoesToLiveData(){assertNull(Router.parse("weather in Delhi"));}
     @Test public void wakeWordAcceptsLikelyIndianEnglishTranscripts(){assertTrue(Router.hasWakePhrase("hey kitty"));assertTrue(Router.hasWakePhrase("hey kitti open youtube"));assertFalse(Router.hasWakePhrase("okay cutie battery"));assertFalse(Router.hasWakePhrase("a cute cat"));}
     @Test public void wakeHasWordBoundary(){assertFalse(Router.hasWakePhrase("kittycat open settings"));assertNull(Router.parse("kittycat open settings"));assertEquals("open settings",Router.stripWake("Hey Kitty, open settings"));}
+    @Test public void followupVideoCommands(){assertEquals("1",Router.parse("okay play the first video").target);assertEquals("focused",Router.parse("okay play that video").target);assertEquals("select_result",Router.parse("tap this song").kind);}
+    @Test public void accountStorageNamespaceStable(){assertEquals(ConversationStore.pairing("https://kitty.test","a",false),ConversationStore.pairing("https://kitty.test","a",false));assertNotEquals(ConversationStore.pairing("https://kitty.test","a",false),ConversationStore.pairing("https://kitty.test","b",false));}
 }
+
 

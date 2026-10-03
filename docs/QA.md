@@ -1,3 +1,27 @@
+# Version 0.4 verification
+
+The automated hosted-account tests use controlled Google/provider fixtures and
+verify nonce consumption, admin denial, masked/encrypted credentials, stable Google
+subjects, logout revocation, per-account memory and provider wire formats. They do
+not contact a real Google account, Groq key, Gemini key or Drive account.
+
+Before presentation, use the real deployed HTTPS gateway and final signed APK:
+
+1. Register the APK certificate with Google; sign in as admin and as a second user.
+2. Confirm the second user cannot see provider controls, admin notices publisher,
+   the admin's history or memory. Confirm sign-out stops voice and separates archives.
+3. Test a real Groq reply, Stop, a second request, quota/key errors and network loss.
+4. Test Gemini voice, local fallback, rapid Stop/voice toggles and media audio focus.
+5. Approve Drive only as admin; opt a test user into backup and verify its JSON file.
+   Opt out, wait for sync and verify deletion. Do not claim full archival backup:
+   this implementation snapshots the last 500 turns and up to 50 explicit memories.
+6. Publish a notice, verify user Settings and allowed notifications. Background
+   scheduled delivery may be delayed; it is not FCM instant push.
+7. On the Vivo, test actual wake audio with YouTube open, follow-up commands within
+   ten seconds, several ambiguous video results, screen lock and OEM battery limits.
+8. Validate update installation with the same retained certificate and a newer
+   version code. A debug artifact cannot establish production update compatibility.
+
 # Verification and personal testing
 
 For the exact supplied APK, checks, CI links and checksum, see [the 0.2 verification record](validation/RELEASE_0_2.md).

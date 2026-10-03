@@ -1,0 +1,6 @@
+# Replace this with your DNS name. Point its A record at your VM.
+kitty.example.com {
+    reverse_proxy 127.0.0.1:8765 {
+        flush_interval -1
+    }
+}

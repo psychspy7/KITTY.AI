@@ -1,6 +1,6 @@
 # App updates and signed releases
 
-KITTY v0.3 has an **Update** button in the Android header and in Settings. It reads `release/update.json` over HTTPS. When a newer version code is published, it downloads the immutable tagged GitHub APK, checks SHA-256, application ID, version and signing certificate against the installed app, then opens Android's installer. Android asks you to approve the install. Incompatible signatures are blocked before installation.
+KITTY v0.4 has an **Update** button in the Android header and in Settings. It reads `release/update.json` over HTTPS. When a newer version code is published, it downloads the immutable tagged GitHub APK, checks SHA-256, application ID, version and signing certificate against the installed app, then opens Android's installer. Android asks you to approve the install. Incompatible signatures are blocked before installation.
 
 Android accepts an in-place update only when the new APK uses the same application ID and the same signing key. Keep the original `KITTY-AI` keystore in a password manager and make an encrypted offline backup. Never commit the keystore or its passwords.
 
@@ -23,6 +23,8 @@ On Windows PowerShell, create the first value with:
 
 An installed v0.2 debug APK can only receive future in-place updates if the signed release uses the **exact same signing key**. Each CI runner may use a different debug key. If no retained key matches the currently installed APK, the update button will explain why it cannot proceed. Back up the phone's data before considering a replacement; do not uninstall without a backup.
 
+Set repository **variable** `KITTY_SERVER_URL` to the gateway HTTPS origin before building a cloud release. It is a public address, not a provider secret. The release workflow embeds it for Google-first onboarding. Run Verify KITTY on main and resolve failures before tagging. Register the actual release signing certificate SHA-1 with the Android Google OAuth client.
+
 ## Publish a release
 
 1. Increase `versionCode` and `versionName` in `android/app/build.gradle`.
@@ -31,8 +33,8 @@ An installed v0.2 debug APK can only receive future in-place updates if the sign
 4. Create and push a tag, for example:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 The workflow builds a signed APK, publishes `KITTY-AI-release.apk` to the GitHub release, calculates its SHA-256, and updates `release/update.json` on `main`. Open the Actions run and confirm both the release and manifest update succeeded before pressing **Update** in the phone app.

@@ -39,7 +39,13 @@ public class KittyAccessibilityService extends AccessibilityService {
                 targets.sort(Comparator.comparingInt((AccessibilityNodeInfo n)->{Rect r=new Rect();n.getBoundsInScreen(r);return r.top;}).thenComparingInt(n->{Rect r=new Rect();n.getBoundsInScreen(r);return r.left;}));
                 List<AccessibilityNodeInfo> unique=new ArrayList<>();Rect last=null;
                 for(AccessibilityNodeInfo node:targets){Rect r=new Rect();node.getBoundsInScreen(r);if(last==null||!Rect.intersects(last,r)){unique.add(node);last=r;}}
-                int index=Integer.parseInt(action.target)-1;
+                int index;
+                if(action.target.equals("focused")){
+                    List<AccessibilityNodeInfo> focused=new ArrayList<>();for(AccessibilityNodeInfo node:unique)if(node.isAccessibilityFocused()||node.isFocused())focused.add(node);
+                    if(focused.size()==1)return focused.get(0).performAction(AccessibilityNodeInfo.ACTION_CLICK)?"Sir, selected the focused video. Check YouTube for playback.":"Sir, YouTube did not accept that tap.";
+                    if(unique.size()!=1)return "Sir, several videos are visible. Say play the first video, or tap followed by its title.";
+                    index=0;
+                }else index=Integer.parseInt(action.target)-1;
                 if(index<0||index>=unique.size())return "Sir, I can't identify that numbered video on this screen. Scroll the results into view, or say ‘tap’ followed by its exact visible title.";
                 return unique.get(index).performAction(AccessibilityNodeInfo.ACTION_CLICK)?"Sir, selected visible video "+action.target+". Check YouTube for playback.":"Sir, YouTube didn't accept that tap.";
             }

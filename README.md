@@ -1,4 +1,23 @@
-# KITTY AI v0.3
+# KITTY AI 0.4
+
+**[Start here: Google login, Groq, Gemini voice and Drive setup](docs/START_HERE_V04.md).**
+
+The hosted-provider update keeps phone actions and local archives on Android. A
+verified admin account manages provider credentials, KITTY character preferences,
+optional Drive backup and notices. Users sign in with Google and never enter a
+model API key. Memories sync per account, with an offline phone outbox. Short phone
+actions use local voice; cloud replies can use cancellable Gemini speech with fallback.
+
+The gateway still needs an HTTPS host, Google OAuth configuration and persistent
+storage. A release APK needs the owner's retained signing key. None is created
+by the repository ZIP alone. No hosted weights have been fine-tuned. Notice
+notifications use scheduled checks rather than instant push.
+
+Legacy laptop mode remains supported; the previous guide below applies only to
+that mode. Google mode rejects legacy pairing tokens. A full Kotlin/Compose
+migration is not included in this update; the native Java app remains in place.
+
+# KITTY AI — legacy local mode v0.3
 
 **New to KITTY? Follow the [v0.3 beginner guide](docs/START_HERE_V03.md) for Windows, Vivo, wireless HTTPS, guest invitations, offline speech, Turso, web research and updates.** A production-signed v0.3 release requires the retained signing key and a successful release workflow; CI's debug APK is for testing.
 

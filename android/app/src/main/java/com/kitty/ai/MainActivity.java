@@ -33,6 +33,8 @@ public class MainActivity extends Activity {
     private TextView connectionStatus;private ProgressBar micMeter;private JSONObject diagnostics;private long checkedAt;
     private java.io.File pendingApk;private boolean updating;
     private Prefs prefs;private ChatController controller;private Button listen;private VoiceService voice;private boolean bound,visible;
+    private CloudUi cloudUi;
+    private final Runnable pollNotices=new Runnable(){public void run(){if(!visible)return;if(prefs.cloud()&&!prefs.accountId().isEmpty())worker.execute(()->{try{NoticeWorker.fetch(getApplicationContext());}catch(Exception ignored){}});main.postDelayed(this,60000);}};
     private final Map<String,TextView> replies=new HashMap<>();private final Set<String> completed=new HashSet<>();
     private final Runnable changed=this::render;
     private final ServiceConnection connection=new ServiceConnection(){
@@ -49,7 +51,7 @@ public class MainActivity extends Activity {
     private Button button(String title,Runnable action){Button b=new Button(this);b.setText(title);b.setTextSize(12);b.setAllCaps(false);b.setTextColor(INK);b.setBackground(bg(CARD,12));b.setMinHeight(dp(42));b.setPadding(dp(12),dp(7),dp(12),dp(7));b.setOnClickListener(v->action.run());return b;}
     private void addButton(LinearLayout row,Button b){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);lp.setMargins(dp(3),0,dp(3),0);row.addView(b,lp);}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);prefs=new Prefs(this);controller=KittyApp.chat(this);
+        super.onCreate(state);prefs=new Prefs(this);controller=KittyApp.chat(this);cloudUi=new CloudUi(this,this::checkForUpdate,this::offlineSetup);
         LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(BG);
         root.setPadding(dp(20),dp(12),dp(20),dp(12));
         root.setOnApplyWindowInsetsListener((v,insets)->{
@@ -58,6 +60,7 @@ public class MainActivity extends Activity {
             v.setPadding(dp(20),top+dp(12),dp(20),bottom+dp(12));return insets;
         });
         setContentView(root);
+        root.setAlpha(0f);root.animate().alpha(1f).setDuration(280).start();
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout titles=new LinearLayout(this);titles.setOrientation(LinearLayout.VERTICAL);
         TextView brand=text("KITTY AI",23,INK);brand.setLetterSpacing(.09f);brand.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));titles.addView(brand);
@@ -68,10 +71,10 @@ public class MainActivity extends Activity {
         LinearLayout hero=new LinearLayout(this);hero.setGravity(Gravity.CENTER_VERTICAL);hero.setPadding(dp(18),dp(10),dp(4),dp(10));
         GradientDrawable gradient=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xFF213930,0xFF101D24});gradient.setCornerRadius(dp(24));gradient.setStroke(dp(1),0xFF345247);hero.setBackground(gradient);
         LinearLayout intro=new LinearLayout(this);intro.setOrientation(LinearLayout.VERTICAL);
-        TextView edition=text("PERSONAL INTELLIGENCE  /  03",9,ACCENT);edition.setLetterSpacing(.12f);intro.addView(edition);
+        TextView edition=text("PERSONAL INTELLIGENCE  /  04",9,ACCENT);edition.setLetterSpacing(.12f);intro.addView(edition);
         TextView greeting=text("Your mind,\namplified.",28,INK);greeting.setTypeface(Typeface.create("serif",Typeface.NORMAL));greeting.setPadding(0,dp(7),0,dp(5));intro.addView(greeting);
         intro.addView(text("At your service, Sir. Created by Virat.",11,MUTED));hero.addView(intro,new LinearLayout.LayoutParams(0,-2,1));
-        orb=new OrbView(this);hero.addView(orb,new LinearLayout.LayoutParams(dp(105),dp(124)));root.addView(hero,new LinearLayout.LayoutParams(-1,dp(148)));
+        orb=new OrbView(this);hero.addView(orb,new LinearLayout.LayoutParams(dp(105),dp(124)));root.addView(hero,new LinearLayout.LayoutParams(-1,dp(148)));hero.setTranslationY(dp(8));hero.animate().translationY(0).setDuration(380).start();
         connectionStatus=text("○  Brain not checked   ·   SYSTEM STATUS  ↗",11,ACCENT);connectionStatus.setPadding(dp(4),dp(13),0,dp(13));connectionStatus.setMinHeight(dp(46));connectionStatus.setOnClickListener(v->refreshConnection(true));root.addView(connectionStatus);
         heard=text("",11,ACCENT);heard.setMaxLines(2);root.addView(heard);
         micMeter=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);micMeter.setMax(100);micMeter.setProgressTintList(android.content.res.ColorStateList.valueOf(ACCENT));micMeter.setVisibility(View.GONE);root.addView(micMeter,new LinearLayout.LayoutParams(-1,dp(4)));
@@ -92,7 +95,7 @@ public class MainActivity extends Activity {
         addButton(bottom,button("Tap to talk",this::microphone));
         listen=button("Hey Kitty: off",this::toggleListening);addButton(bottom,listen);
         addButton(bottom,button("New chat",()->controller.newChat()));root.addView(bottom);
-        bubble("Sir, I'm KITTY. Your phone handles voice and commands; your laptop handles the thinking. Pair in Settings, then try a conversation, ‘weather in Delhi’, or Web research.",false,"","status");
+        bubble(prefs.cloud()?"Sir, welcome to KITTY. Sign in with Google to enter your own chat and memory space. Virat manages the AI services; you never need a provider key.":"Sir, I'm KITTY. Your phone handles voice and commands; your laptop handles the thinking. Pair in Settings or connect your Google account, then try a conversation.",false,"","status");
     }
     private void render(){
         if(isDestroyed()||!visible)return;
@@ -115,8 +118,8 @@ public class MainActivity extends Activity {
         }
         if(controller.voiceRunning)bindVoice();else unbindVoice();
     }
-    @Override protected void onStart(){super.onStart();visible=true;controller.foreground=new WeakReference<>(this);controller.observe(changed);controller.sync();bindVoice();if(SystemClock.elapsedRealtime()-checkedAt>30000)refreshConnection(false);}
-    @Override protected void onStop(){visible=false;controller.remove(changed);if(controller.foreground.get()==this)controller.foreground.clear();unbindVoice();super.onStop();}
+    @Override protected void onStart(){super.onStart();visible=true;controller.foreground=new WeakReference<>(this);controller.observe(changed);controller.sync();bindVoice();if(SystemClock.elapsedRealtime()-checkedAt>30000)refreshConnection(false);main.removeCallbacks(pollNotices);main.post(pollNotices);}
+    @Override protected void onStop(){visible=false;main.removeCallbacks(pollNotices);controller.remove(changed);if(controller.foreground.get()==this)controller.foreground.clear();unbindVoice();super.onStop();}
     @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);}
     private TextView bubble(String message,boolean user,String id,String mode){
         LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setBackground(bg(user?0xFF253C34:CARD,18));box.setPadding(dp(16),dp(14),dp(16),dp(14));
@@ -161,8 +164,19 @@ public class MainActivity extends Activity {
         TextView title=text(label,12,MUTED);title.setPadding(0,dp(10),0,0);box.addView(title);EditText edit=new EditText(this);edit.setText(value);edit.setSingleLine(true);edit.setTextSize(14);edit.setInputType(secret?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);box.addView(edit);return edit;
     }
     private void settings(){
+        if(prefs.cloud()){cloudUi.settings();return;}
+        legacySettings();
+    }
+    private void offlineSetup(){
+        new AlertDialog.Builder(this).setTitle("Offline speech").setItems(new String[]{"Download Indian English ZIP","Import speech model ZIP"},(d,i)->{
+            if(i==0)startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://alphacephei.com/vosk/models/vosk-model-small-en-in-0.4.zip")));
+            else{requestVoiceStop();Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");startActivityForResult(pick,70);}
+        }).show();
+    }
+    private void legacySettings(){
         ScrollView container=new ScrollView(this);LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),dp(6),dp(20),dp(10));container.addView(form);
         form.addView(text("Pair my brain. Choose my voice. Give me the access I need, Sir.",14,INK));
+        form.addView(button("Sign in with Google · Cloud KITTY",cloudUi::signIn));
         EditText url=field(form,"Laptop server URL",prefs.url(),false);
         EditText token=field(form,"Pairing token",prefs.token(),true);
         EditText country=field(form,"Country calling code",prefs.country(),false);
@@ -204,17 +218,17 @@ public class MainActivity extends Activity {
     }
     private void refreshConnection(boolean show){
         checkedAt=SystemClock.elapsedRealtime();
-        if(prefs.token().isEmpty()){connectionStatus.setText("○  Pair your brain in Settings   ·   SETUP  ↗");if(show)settings();return;}
+        if(prefs.token().isEmpty()){connectionStatus.setText(prefs.cloud()?"○  Sign in with Google   ·   YOUR SPACE  ↗":"○  Pair your brain in Settings   ·   SETUP  ↗");if(show)settings();return;}
         connectionStatus.setText("◌  Checking brain connection…");
         worker.execute(()->{
             JSONObject result=null;try{result=BrainClient.request(prefs,"/v1/status",null);}catch(Exception ignored){}
             final JSONObject data=result;
             main.post(()->{
-                if(isDestroyed()||isFinishing())return;diagnostics=data;
+                if(isDestroyed()||isFinishing())return;diagnostics=data;if(data!=null&&prefs.cloud())prefs.p.edit().putBoolean("speech_ready",data.optBoolean("speech_ready")).apply();
                 connectionStatus.setText(data==null?"○  Brain offline   ·   Phone commands ready  ↗":(data.optBoolean("model_ready")?"●  Brain ready":"◐  Brain online · model offline")+"   ·   "+data.optString("role","owner").toUpperCase(Locale.ROOT)+"  ↗");
                 if(show){
                     JSONObject sync=data==null?null:data.optJSONObject("sync");
-                    String description="APP  "+appVersionName()+" · build "+appVersionCode()+"\n\nBRAIN  "+(data==null?"Unreachable. Check URL, token, laptop and tunnel.":data.optString("version")+" · "+(data.optBoolean("model_ready")?"model ready":"start START_MODEL_FAST.bat"))+"\n\nWEB RESEARCH  "+(data!=null&&data.optBoolean("web_ready")?"Configured. Try: research latest space news":"Not configured on brain")+"\n\nCLOUD MEMORY  "+(sync==null?"Unknown":sync.optString("state")+" · "+sync.optInt("pending")+" queued operations")+"\n\nOFFLINE SPEECH  "+(ModelInstaller.installed(this)?"Model installed":"Import a Vosk ZIP in Settings")+"\nMICROPHONE  "+(controller.voiceRunning?controller.voiceState:"Off · start Hey Kitty while KITTY is open")+"\nSCREEN CONTROL  "+(KittyAccessibilityService.instance==null?"Enable Accessibility in Settings":"Connected")+"\n\nTiming shown under replies measures model first-token time, not total speech latency.";
+                    String description="APP  "+appVersionName()+" · build "+appVersionCode()+"\n\nBRAIN  "+(data==null?"Unreachable. Check the service address, sign-in and internet.":data.optString("version")+" · "+(data.optBoolean("model_ready")?"model ready":(prefs.cloud()?"admin: connect Groq in your console":"start START_MODEL_FAST.bat")))+"\n\nWEB RESEARCH  "+(data!=null&&data.optBoolean("web_ready")?"Configured. Try: research latest space news":"Not configured on brain")+"\n\nCLOUD MEMORY  "+(sync==null?"Unknown":sync.optString("state")+" · "+sync.optInt("pending")+" queued operations")+"\n\nOFFLINE SPEECH  "+(ModelInstaller.installed(this)?"Model installed":"Import a Vosk ZIP in Settings")+"\nMICROPHONE  "+(controller.voiceRunning?controller.voiceState:"Off · start Hey Kitty while KITTY is open")+"\nSCREEN CONTROL  "+(KittyAccessibilityService.instance==null?"Enable Accessibility in Settings":"Connected")+"\n\nTiming shown under replies measures model first-token time, not total speech latency.";
                     new AlertDialog.Builder(this).setTitle("System status").setMessage(description).setPositiveButton("Done",null).show();
                 }
             });
@@ -262,6 +276,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
+        if(request==91&&result==RESULT_OK&&data!=null&&data.getData()!=null)cloudUi.saveTraining(data.getData());
         if(request==71&&getPackageManager().canRequestPackageInstalls())installUpdate();
         if(request==70&&result==RESULT_OK&&data!=null&&data.getData()!=null){
             Uri uri=data.getData();bubble("Sir, importing the offline model. This may take a moment.",false,"","status");worker.execute(()->{
@@ -270,5 +285,5 @@ public class MainActivity extends Activity {
             });
         }
     }
-    @Override public void onDestroy(){worker.shutdown();main.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override public void onDestroy(){cloudUi.close();worker.shutdown();main.removeCallbacksAndMessages(null);super.onDestroy();}
 }

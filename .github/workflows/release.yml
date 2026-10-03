@@ -33,6 +33,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: python -m pip install -r requirements-turso.txt -r requirements-cloud.txt
       - run: python -m unittest discover -s tests -q
       - uses: actions/setup-java@v4
         with:
@@ -52,6 +53,7 @@ jobs:
           KITTY_STORE_PASSWORD: ${{ secrets.KITTY_STORE_PASSWORD }}
           KITTY_KEY_ALIAS: ${{ secrets.KITTY_KEY_ALIAS }}
           KITTY_KEY_PASSWORD: ${{ secrets.KITTY_KEY_PASSWORD }}
+          KITTY_SERVER_URL: ${{ vars.KITTY_SERVER_URL }}
         run: ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleRelease
       - name: Prepare release metadata
         id: metadata

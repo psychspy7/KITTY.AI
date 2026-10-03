@@ -27,3 +27,5 @@ training/runs/
 *.p12
 *store-password*
 *signing-backup*
+
+admin.sealed

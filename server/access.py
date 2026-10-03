@@ -13,7 +13,7 @@ def load_env(path):
     """Read only known keys, without shell evaluation or overriding process env."""
     if not path.exists():
         return
-    allowed = {"TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BRAVE_SEARCH_API_KEY"}
+    allowed = {"TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BRAVE_SEARCH_API_KEY", "GOOGLE_WEB_CLIENT_ID", "GOOGLE_WEB_CLIENT_SECRET", "KITTY_PUBLIC_URL"}
     values = {}
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
@@ -70,7 +70,7 @@ class Access:
 
 def scope_id(actor, value):
     value = str(uuid.UUID(value))
-    return value if actor == "owner" else str(uuid.uuid5(uuid.UUID(actor), value))
+    return value if actor == "owner" else str(uuid.uuid5(uuid.UUID(actor[5:] if actor.startswith("user_") else actor), value))
 
 
 def scope_body(actor, body):
@@ -80,4 +80,4 @@ def scope_body(actor, body):
     if not isinstance(session, str) or not 1 <= len(session) <= 80:
         raise ValueError("Invalid session")
     return {**body, "request_id": scope_id(actor, body.get("request_id", "")),
-            "session": "guest_" + actor + "_" + hashlib.sha256(session.encode()).hexdigest()[:24]}
+            "session": (actor if actor.startswith("user_") else "guest_" + actor) + "_" + hashlib.sha256(session.encode()).hexdigest()[:24]}

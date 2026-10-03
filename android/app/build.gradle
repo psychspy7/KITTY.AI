@@ -10,11 +10,14 @@ android {
         applicationId 'com.kitty.ai'
         minSdk 29
         targetSdk 35
-        versionCode 30
-        versionName '0.3.0'
+        versionCode 40
+        versionName '0.4.0'
+        def cloudUrl = System.getenv('KITTY_SERVER_URL') ?: ''
+        if (cloudUrl && !(cloudUrl ==~ /https:\/\/[A-Za-z0-9.-]+(:[0-9]+)?/)) throw new GradleException('KITTY_SERVER_URL must be a public HTTPS origin')
+        buildConfigField 'String', 'KITTY_SERVER_URL', '"' + cloudUrl + '"'
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
-    buildFeatures { aidl true }
+    buildFeatures { aidl true; buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     signingConfigs {
         release {
@@ -40,6 +43,10 @@ dependencies {
     implementation 'dev.rikka.shizuku:provider:13.1.5'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.credentials:credentials:1.5.0'
+    implementation 'androidx.credentials:credentials-play-services-auth:1.5.0'
+    implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
+    implementation 'androidx.work:work-runtime:2.10.0'
     implementation 'com.alphacephei:vosk-android:0.3.75@aar'
     implementation 'net.java.dev.jna:jna:5.18.1@aar'
     testImplementation 'junit:junit:4.13.2'

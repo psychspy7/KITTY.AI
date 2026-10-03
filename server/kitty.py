@@ -1,4 +1,4 @@
-"""KITTY 0.3: a local llama.cpp companion with isolated guest invitations.
+"""KITTY 0.4: Google accounts and hosted providers, with optional local llama.cpp.
 
 The default backend is the standard-library SQLite database. When
 TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set, the store uses Turso Sync
@@ -36,13 +36,17 @@ try:
     from .access import Access, load_env, scope_body, scope_id
     from .cloud_sync import CloudSync, enqueue
     from .web_search import research
+    from .accounts import Accounts
+    from .providers import ProviderError
 except ImportError:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from access import Access, load_env, scope_body, scope_id
     from cloud_sync import CloudSync, enqueue
     from web_search import research
+    from accounts import Accounts
+    from providers import ProviderError
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HOME = ROOT / "data"
 SYSTEM = """You are KITTY AI, Virat's personal AI companion. Virat conceived and
@@ -106,7 +110,7 @@ class GenerationControl:
             raise Cancelled()
 
 
-def remote_stream(url, payload, control, timeout=120):
+def remote_stream(url, payload, control, timeout=120, headers=None):
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValueError("Invalid model URL")
@@ -118,9 +122,13 @@ def remote_stream(url, payload, control, timeout=120):
         with control.lock:
             control.socket = connection.sock
         control.check()
-        connection.request("POST", parsed.path, json.dumps(payload).encode(), {"Content-Type": "application/json"})
+        connection.request("POST", parsed.path, json.dumps(payload).encode(), {"Content-Type": "application/json", **(headers or {})})
         response = connection.getresponse()
         if response.status != 200:
+            if headers:
+                if response.status==429:raise ProviderError("Groq quota reached. Try again later or ask the admin to check billing.")
+                if response.status in (401,403):raise ProviderError("Groq access was denied. Ask the admin to check its API key and model access.")
+                raise ProviderError("Groq could not complete this request (HTTP %s)." % response.status)
             raise ValueError("Model HTTP error")
         total = 0
         while True:
@@ -408,8 +416,9 @@ class Brain:
         self.store.purge(self.config.get("history_days", 0))
         self.lock = threading.Lock()
         self.pending = {}
-        self.model_gate = threading.BoundedSemaphore(1)
+        self.model_gate = threading.BoundedSemaphore(4 if os.environ.get("GOOGLE_WEB_CLIENT_ID") else 1)
         self.access = Access(home)
+        self.accounts = Accounts(home,self.store)
 
     def fit_context(self, messages, max_tokens=None):
         """Count with the actual model tokenizer, reserving room for its answer."""
@@ -483,6 +492,7 @@ class Brain:
             result.update({"response_id": key, "version": VERSION})
             result["reply"] = addressed(result["reply"])
             self.store.save(key, session, text, result)
+            if session.startswith("user_"):self.accounts.queue_backup(session[5:37])
             future.set_result(result)
             return result
         except Exception as exc:
@@ -494,13 +504,33 @@ class Brain:
 
     def _respond(self, text, session, on_event=None, control=None):
         clean = strip_wake(text)
-        guest = session.startswith("guest_")
+        guest = session.startswith(("guest_","user_"))
         result = {"reply": "", "actions": [], "mode": "local"}
         web = re.fullmatch(r"(?:research|look up|/web)\s+(.+)", clean, re.I | re.S)
         if web:
             if on_event:
                 on_event("status", {"phase": "Searching the web"})
             return research(web[1])
+        m = re.fullmatch(r"(?:(?:what(?:'s| is)\s+)?(?:the\s+)?)weather(?:\s+(?:in|at|for)\s+(.+?))?[?.!]*", clean, re.I)
+        if m:
+            if not self.config.get("weather_enabled", True):
+                result["reply"] = "Sir, live weather is disabled in the laptop configuration."
+                return result
+            city = (m[1] or ("" if guest else self.config.get("weather_city", ""))).strip()
+            if not city:
+                result["reply"] = "Which city, Sir? Say: weather in Delhi."
+            else:
+                try:
+                    result["reply"] = weather(city, self.config.get("weather_country", "IN"))
+                except (OSError, ValueError, KeyError, URLError):
+                    result["reply"] = "Sir, I couldn't fetch live weather. I won't improvise a forecast. Try again when the laptop is online."
+            result["mode"] = "weather"
+            return result
+        if self.accounts.enabled:
+            if not self.model_gate.acquire(timeout=1):
+                return {**result,"mode":"unavailable","reply":"Sir, KITTY is busy answering another request. Try again shortly."}
+            try:return self.accounts.respond(text,session,on_event,control or GenerationControl(),remote_stream)
+            finally:self.model_gate.release()
         if re.fullmatch(r"(?:introduce (?:yourself|urself|urslef)|who (?:are (?:you|u)|created (?:you|u)|made (?:you|u))|what is your name)[?.!]*", clean, re.I):
             result.update(mode="identity", reply="Sir, I'm KITTY AI, Virat's personal AI assistant. Virat created the KITTY project; my underlying language model is Qwen. I help with conversations, memories, and supported phone commands—with a little wit.")
             return result
@@ -523,21 +553,6 @@ class Brain:
         m = re.fullmatch(r"forget(?: memory)?\s+(\d+)", clean, re.I)
         if m:
             result["reply"] = "Sir, memory deleted." if self.store.forget(int(m[1])) else "Sir, that memory ID doesn't exist."
-            return result
-        m = re.fullmatch(r"(?:(?:what(?:'s| is)\s+)?(?:the\s+)?)weather(?:\s+(?:in|at|for)\s+(.+?))?[?.!]*", clean, re.I)
-        if m:
-            if not self.config.get("weather_enabled", True):
-                result["reply"] = "Sir, live weather is disabled in the laptop configuration."
-                return result
-            city = (m[1] or ("" if guest else self.config.get("weather_city", ""))).strip()
-            if not city:
-                result["reply"] = "Which city, Sir? Say: weather in Delhi."
-            else:
-                try:
-                    result["reply"] = weather(city, self.config.get("weather_country", "IN"))
-                except (OSError, ValueError, KeyError, URLError):
-                    result["reply"] = "Sir, I couldn't fetch live weather. I won't improvise a forecast. Try again when the laptop is online."
-            result["mode"] = "weather"
             return result
         persona_path = self.home / "personality.txt"
         persona = persona_path.read_text(encoding="utf-8") if persona_path.exists() and not guest else SYSTEM
@@ -667,6 +682,10 @@ class Server(ThreadingHTTPServer):
             brain.store.cloud.start()
         super().__init__(address, Handler)
 
+    def server_close(self):
+        self.brain.accounts.close()
+        super().server_close()
+
     def process_request(self, request, address):
         if not self.slots.acquire(blocking=False):
             self.shutdown_request(request)
@@ -681,7 +700,7 @@ class Server(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "Kitty/0.3"
+    server_version = "Kitty/0.4"
 
     def setup(self):
         super().setup()
@@ -711,7 +730,9 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(403, {"error": "Browser origins are not accepted"})
             return False
         value = self.headers.get("Authorization", "")
-        self.actor = self.server.brain.access.authenticate(value[7:] if value.startswith("Bearer ") else "", self.server.brain.config["token"])
+        b=self.server.brain
+        token=value[7:] if value.startswith("Bearer ") else ""
+        self.actor = b.accounts.authenticate(token) if b.accounts.enabled else b.access.authenticate(token,b.config["token"])
         if not self.actor:
             self.reply(401, {"error": "Pairing token required"})
             return False
@@ -731,10 +752,15 @@ class Handler(BaseHTTPRequestHandler):
         return result
 
     def do_GET(self):
+        if self.server.brain.accounts.handle(self):return
         if self.path == "/health":
             self.reply(200, {"status": "ok", "version": VERSION})
         elif self.path == "/v1/status" and self.authorized():
             b = self.server.brain
+            if b.accounts.enabled:
+                settings=b.accounts.settings();role=b.accounts.account(self.actor[5:])["role"]
+                self.reply(200,{"version":VERSION,"model":settings["groq_model"],"model_ready":settings["groq_configured"],"role":role,"provider":"groq","speech_ready":settings["gemini_configured"],"sync":b.accounts.account(self.actor[5:])["drive"],"web_ready":bool(os.environ.get("BRAVE_SEARCH_API_KEY")),"database":b.store.backend})
+                return
             models, error = [], None
             try:
                 models = [m["id"] for m in remote_json(b.config["model_base_url"].rstrip("/") + "/models", timeout=5).get("data", [])]
@@ -745,6 +771,7 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(404, {"error": "Not found"})
 
     def do_POST(self):
+        if self.server.brain.accounts.handle(self):return
         if not self.authorized():
             return
         if self.headers.get("Transfer-Encoding") or self.headers.get_content_type() != "application/json":
@@ -774,12 +801,14 @@ class Handler(BaseHTTPRequestHandler):
                     scoped = scope_body(self.actor, {**e, "request_id": e.get("id", "")})
                     mapped.append({**e, "id": scoped["request_id"], "session": scoped.get("session", "default")})
                 self.server.brain.store.import_events(mapped)
+                if self.actor.startswith("user_"):self.server.brain.accounts.queue_backup(self.actor[5:])
                 self.reply(200, {"accepted": [e["id"] for e in events]})
             elif self.path == "/v1/feedback":
                 key, rating, correction = body.get("response_id"), body.get("rating"), body.get("correction", "")
                 if not isinstance(key, str) or type(rating) is not int or rating not in (-1, 1) or not isinstance(correction, str) or len(correction) > 8000:
                     raise ValueError("Invalid feedback")
                 self.server.brain.store.feedback(scope_id(self.actor, key), rating, correction)
+                if self.actor.startswith("user_"):self.server.brain.accounts.queue_backup(self.actor[5:])
                 self.reply(200, {"saved": True})
             else:
                 self.reply(404, {"error": "Not found"})

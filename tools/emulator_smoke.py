@@ -306,7 +306,7 @@ def main():
             d.expect("couldn't reach my laptop brain")
             d.send("battery")
             d.expect("Sir, your phone is at")
-            d.send("introduce yourself");d.expect("Virat created the KITTY project")
+            d.send("introduce yourself");d.expect("created by Virat")
             d.screenshot("06-gateway-offline")
             speech_service_check(d,home)
             crash = d.adb("logcat", "-b", "crash", "-d")

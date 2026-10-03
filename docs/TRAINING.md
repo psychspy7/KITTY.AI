@@ -1,3 +1,15 @@
+# Hosted Groq mode in 0.4
+
+Use the admin console's character field for tone preferences; the account memory
+is separate from model weights. The gateway does not fine-tune Groq models or
+remove provider restrictions. Drive backup and training consent are separate,
+opt-in choices for each user. Admins can export a bounded JSONL sample of
+consenting users' positively rated or corrected model answers in the phone
+console. Review these examples for privacy, rights and quality before a separate
+provider-supported training workflow. This export is not the full training corpus.
+
+The remainder describes the retained local-model workflow.
+
 > 0.2 saves phone turns and feedback locally, with an outbox for laptop sync. Starter authored examples are in `training/identity_examples.jsonl`; they have not been used to modify model weights.
 
 # Personalize and train KITTY
