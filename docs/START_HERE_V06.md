@@ -194,7 +194,15 @@ To create the Base64 file locally:
 
 Copy its contents into the **secret**, not a repository variable or source file. Delete the temporary Base64 file once the secret is saved. Keep the original keystore backup.
 
-For the first configured build of this source, tag `v0.6.0` from an actual Git clone AFTER checking the version and passing tests:
+For the first configured TEST build:
+
+1. Open repository → **Actions** → **Build configured KITTY APK**.
+2. Click **Run workflow**, select `main`, then run it.
+3. Wait for the green check. This reads your public Firebase config and private signing secrets, builds the APK and audits its permissions. It **does not publish a release**.
+4. Open that workflow run. Under **Artifacts**, download **KITTY-configured-signed-apk**.
+5. Extract the ZIP and install `app-release.apk` through Android's normal installer. This is the configured test app you use in steps 8 and 9.
+
+Once real login, admin access and API chats have passed those checks, publish the first version from an actual Git clone:
 
 ```powershell
 git pull --ff-only origin main
@@ -204,7 +212,7 @@ git push origin v0.6.0
 
 This triggers **Build signed KITTY release**. If that tag already exists, do not overwrite it; increment the source version name AND version code, then use a new tag. The workflow requires an exact matching tag.
 
-When the workflow succeeds, open repository → Releases → your version. Download **KITTY-AI-release.apk**. This is the configured APK you install on your phone and share with users. Install through Android's normal browser/file-manager installer; KITTY itself has no installer permission.
+When the release workflow succeeds, open repository → Releases → your version. Download **KITTY-AI-release.apk**. Share that signed APK with users. KITTY itself has no installer permission.
 
 Alternative: with Android Studio/SDK and Java 17 configured, set `KITTY_KEYSTORE_PATH`, `KITTY_STORE_PASSWORD`, `KITTY_KEY_ALIAS`, `KITTY_KEY_PASSWORD` and `KITTY_FIREBASE_REGION` in your local environment, then run `android/gradlew.bat -p android assembleRelease`. Do not build without a signing key and call the unsigned APK an update.
 

@@ -46,7 +46,7 @@ class Providers {
       url = GEMINI; headers = {'x-goog-api-key': key};
       // Stateless request. Bounded Firestore history is explicitly supplied;
       // no cross-user provider conversation ID or local PC session is reused.
-      body = {model: settings.gemini_chat_model, system_instruction: messages[0].content,
+      body = {model: settings.gemini_chat_model, system_instruction: messages[0].content + '\nThe input is a JSON conversation. Answer its final user message; earlier entries are context, not a request to analyse JSON.',
         input: JSON.stringify({conversation: messages.slice(1)}), stream: true, store: false,
         generation_config: {max_output_tokens: 1536, thinking_level: 'low'}};
     } else {

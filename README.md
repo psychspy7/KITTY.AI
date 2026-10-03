@@ -43,4 +43,6 @@ firebase emulators:exec --project demo-kitty-ci --only firestore,auth "node --te
 
 Android: Java 17, Gradle wrapper, compile SDK 36, minimum Android 10/API 29. Add the public Firebase Android config at `android/app/google-services.json`; set `KITTY_FIREBASE_REGION` if changing from `asia-south1`. `./gradlew -p android testDebugUnitTest lintDebug assembleDebug` builds a preview. Production APK updates must retain the owner signing key.
 
+Use [.github/workflows/build-configured.yml](.github/workflows/build-configured.yml) to build a signed configured test APK without publishing.
+
 See [.github/workflows/verify.yml](.github/workflows/verify.yml) for checks and [.github/workflows/release.yml](.github/workflows/release.yml) for signed releases. Never commit model keys, passwords, keystores or vault-key files.

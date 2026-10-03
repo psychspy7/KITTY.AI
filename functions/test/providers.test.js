@@ -26,7 +26,7 @@ test('Gemini uses Interactions API and ignores thought summaries', async () => {
   let request;
   const p = new Providers(async (url, options) => {request = {url, ...options}; return stream('data: {"event_type":"step.delta","delta":{"type":"thought_summary","text":"private"}}\n\ndata: {"event_type":"step.delta","delta":{"type":"text","text":"Hi"}}\n\ndata: {"event_type":"interaction.completed"}\n\ndata: [DONE]\n\n');});
   assert.deepEqual(await collect(p.chat('gemini', DEFAULTS, {gemini: 'key'}, [{role: 'system', content: 'Core'}, {role: 'user', content: 'Hello'}], new AbortController().signal)), ['Hi']);
-  const body = JSON.parse(request.body); assert.equal(body.system_instruction, 'Core'); assert.equal(body.store, false); assert.equal(body.stream, true);
+  const body = JSON.parse(request.body); assert.ok(body.system_instruction.startsWith('Core\n')); assert.ok(body.system_instruction.includes('final user message'));  assert.equal(body.store, false); assert.equal(body.stream, true);
   assert.equal(request.url, 'https://generativelanguage.googleapis.com/v1beta/interactions');
 });
 test('provider errors never leak the upstream response body', async () => {
