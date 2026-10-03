@@ -46,6 +46,29 @@ test('real Firebase Auth/Firestore emulators enforce owner, rules, transactions 
       await assertFails(setDoc(doc(db, 'private/config'), {creator: 'Forged'}));
       await assertFails(getDoc(doc(db, `users/${alice.uid}/turns/r1`)));
     }
+    // Exercise the real exported HTTPS handler with emulator-issued Google
+    // Firebase tokens. No production project or paid provider call is involved.
+    process.env.GCLOUD_PROJECT = projectId;
+    process.env.FUNCTIONS_EMULATOR = 'true';
+    process.env.KITTY_ADMIN_UID = virat.uid;
+    process.env.KITTY_VAULT_KEY = 'c'.repeat(64);
+    const express = require('express');
+    const app = express(); app.use(express.json()); app.use(require('../src/index').kittyApi);
+    const server = app.listen(0, '127.0.0.1');
+    await new Promise(resolve => server.once('listening', resolve));
+    const url = 'http://127.0.0.1:' + server.address().port;
+    try {
+      assert.equal((await fetch(url + '/health')).status, 200);
+      assert.equal((await fetch(url + '/v1/me')).status, 401);
+      const me = await (await fetch(url + '/v1/me', {headers: {Authorization: 'Bearer ' + virat.token}})).json();
+      assert.equal(me.role, 'admin');
+      assert.equal((await fetch(url + '/v1/admin/settings', {headers: {Authorization: 'Bearer ' + alice.token}})).status, 403);
+      const settings = await (await fetch(url + '/v1/admin/settings', {headers: {Authorization: 'Bearer ' + virat.token}})).json();
+      assert.equal(settings.groq_configured, true); assert.ok(!JSON.stringify(settings).includes('test-only-key'));
+      const response = await fetch(url + '/v1/chat/stream', {method: 'POST', headers: {Authorization: 'Bearer ' + virat.token, 'Content-Type': 'application/json'}, body: JSON.stringify({text: 'Who made you?', session: 'http-session', request_id: 'http-intro'})});
+      assert.ok(response.headers.get('content-type').startsWith('text/event-stream'));
+      const events = await response.text(); assert.ok(events.includes('event: done')); assert.ok(events.includes('Virat with the help of Kitty Corp'));
+    } finally {server.closeAllConnections(); await new Promise(resolve => server.close(resolve));}
     await sdkAuth.updateUser(alice.uid, {disabled: true});
     await assert.rejects(service.account('Bearer ' + alice.token), {status: 401});
   } finally { await env.cleanup(); await Promise.all(clients.map(deleteClient)); await deleteAdmin(admin); }
