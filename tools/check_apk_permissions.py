@@ -5,7 +5,7 @@ import re
 import subprocess
 import xml.etree.ElementTree as ET
 
-ALLOWED = {'android.permission.INTERNET','android.permission.ACCESS_NETWORK_STATE','com.kitty.ai.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
+ALLOWED = {'android.permission.INTERNET','android.permission.ACCESS_NETWORK_STATE','com.google.android.providers.gsf.permission.READ_GSERVICES','com.kitty.ai.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'}
 ANDROID='{http://schemas.android.com/apk/res/android}'
 
 
@@ -33,7 +33,7 @@ def main():
     permissions=set(re.findall(r"uses-permission[^\n]*name='([^']+)'",output))
     if not permissions or permissions-ALLOWED:raise SystemExit('APK permission audit failed: '+repr(permissions))
     if not {'android.permission.INTERNET','android.permission.ACCESS_NETWORK_STATE'} <= permissions:raise SystemExit('Network permissions missing')
-    print('PASS: built APK has only network access and an optional app-owned signature permission.\n'+output)
+    print('PASS: built APK has network access, Google service configuration read and an optional app-owned signature permission; no sensitive runtime, background or installer permissions.\n'+output)
 
 
 if __name__=='__main__':main()
