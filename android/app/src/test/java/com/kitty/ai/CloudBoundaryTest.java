@@ -11,13 +11,13 @@ public class CloudBoundaryTest {
         }
     }
     @Test public void releaseLinksCannotBeRetargeted(){
-        assertEquals("https://github.com/psychspy7/KITTY.AI/releases/tag/v0.5.1",AppUpdater.releasePage("https://github.com/psychspy7/KITTY.AI/releases/download/v0.5.1/KITTY-AI-release.apk"));
-        for(String bad:new String[]{"http://github.com/psychspy7/KITTY.AI/releases/download/v0.5.1/KITTY-AI-release.apk","https://evil.example/update.apk","https://github.com/other/repo/releases/download/v0.5.1/KITTY-AI-release.apk","https://github.com/psychspy7/KITTY.AI/releases/download/v0.5.1/KITTY-AI-release.apk?next=evil","https://github.com:8443/psychspy7/KITTY.AI/releases/download/v0.5.1/KITTY-AI-release.apk"}){
+        assertEquals("https://github.com/psychspy7/KITTY.AI/releases/tag/v0.6.1",AppUpdater.releasePage("https://github.com/psychspy7/KITTY.AI/releases/download/v0.6.1/KITTY-AI-release.apk"));
+        for(String bad:new String[]{"http://github.com/psychspy7/KITTY.AI/releases/download/v0.6.1/KITTY-AI-release.apk","https://evil.example/update.apk","https://github.com/other/repo/releases/download/v0.6.1/KITTY-AI-release.apk","https://github.com/psychspy7/KITTY.AI/releases/download/v0.6.1/KITTY-AI-release.apk?next=evil","https://github.com:8443/psychspy7/KITTY.AI/releases/download/v0.6.1/KITTY-AI-release.apk"}){
             try{AppUpdater.releasePage(bad);fail();}catch(IllegalArgumentException expected){}
         }
     }
     @Test public void metadataMustNameARealVersion() throws Exception {
-        AppUpdater.UpdateInfo info=AppUpdater.parse(new JSONObject().put("latest_version_code",51).put("version_name","0.5.1").put("download_url","https://github.com/psychspy7/KITTY.AI/releases/download/v0.5.1/KITTY-AI-release.apk"));assertEquals(51,info.code);
+        AppUpdater.UpdateInfo info=AppUpdater.parse(new JSONObject().put("latest_version_code",61).put("version_name","0.6.1").put("download_url","https://github.com/psychspy7/KITTY.AI/releases/download/v0.6.1/KITTY-AI-release.apk"));assertEquals(61,info.code);
         try{AppUpdater.parse(new JSONObject().put("latest_version_code",0));fail();}catch(IllegalArgumentException expected){}
     }
     @Test public void accountArchiveScopesAreStableAndDifferent(){

@@ -74,7 +74,7 @@ final class ChatController {
         active=null;activeAccount=null;call=null;busy=false;put(turn,"reply",turn.optString("reply")+(turn.optString("reply").isEmpty()?"Stopped.":"\n\n[Stopped]"));put(turn,"mode","cancelled");save(turn);phase="Stopped";changed();
         network.execute(()->{try{BrainClient.request(account,"/v1/cancel",new JSONObject().put("request_id",id));}catch(Exception ignored){}});
     }
-    void feedback(String id,int rating,String correction){disk.execute(()->{store.feedback(id,rating,correction);sync();});}
+    void feedback(String id,int rating,String correction){BrainClient.Session account=new BrainClient.Session(prefs);disk.execute(()->{store.feedback(account.pairing,id,rating,correction);sync();});}
     void sync(){
         if(!loaded||!prefs.signedIn()||!syncing.compareAndSet(false,true))return;
         BrainClient.Session account=new BrainClient.Session(prefs);
@@ -82,8 +82,8 @@ final class ChatController {
             network.execute(()->{boolean success=false;try{
                 if(!account.current(prefs))return;
                 JSONArray rows=BrainClient.request(account,"/v1/memories",new JSONObject().put("changes",memories)).getJSONArray("memories");disk.execute(()->store.memoryMerged(account.pairing,memories,rows));
-                if(pending.length()>0){JSONArray accepted=BrainClient.request(account,"/v1/events",new JSONObject().put("events",pending)).getJSONArray("accepted");disk.execute(()->store.synced(accepted));}
-                for(JSONObject f:feedback){BrainClient.request(account,"/v1/feedback",f);disk.execute(()->store.feedbackSynced(f));}success=true;
+                if(pending.length()>0){JSONArray accepted=BrainClient.request(account,"/v1/events",new JSONObject().put("events",pending)).getJSONArray("accepted");disk.execute(()->store.synced(account.pairing,accepted));}
+                for(JSONObject f:feedback){BrainClient.request(account,"/v1/feedback",f);disk.execute(()->store.feedbackSynced(account.pairing,f));}success=true;
             }catch(Exception ignored){}finally{syncing.set(false);boolean drain=success&&(pending.length()==20||memories.length()>0);main.post(()->{if(drain||!account.current(prefs))sync();});}});
         });
     }

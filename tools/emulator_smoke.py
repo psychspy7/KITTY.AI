@@ -167,13 +167,13 @@ def main():
         d.adb('install','-r',str(test_apk))
         instrument=d.adb('shell','am','instrument','-w','-r','com.kitty.ai.test/androidx.test.runner.AndroidJUnitRunner')
         (args.output/'instrumentation.txt').write_text(instrument)
-        if 'OK (1 test)' not in instrument:raise AssertionError('Native layout instrumentation failed: '+instrument[-2000:])
+        if 'OK (2 tests)' not in instrument:raise AssertionError('Native layout/storage instrumentation failed: '+instrument[-2000:])
         for name in ('home-fixture','conversation-fixture','composer-fixture'):
             raw=d.adb('exec-out','run-as',PACKAGE,'cat','files/qa-layout/'+name+'.png',binary=True)
             (args.output/(name+'.png')).write_bytes(raw)
         crash=d.adb('logcat','-b','crash','-d')
         if PACKAGE in crash:raise AssertionError('KITTY crashed during native layout fixtures')
-        with (args.output/'result.txt').open('a') as out:out.write('PASS: production home/conversation/composer renderer with test-only visual fixtures; composer width check. Fixtures do not validate Google login or live API replies.\n')
+        with (args.output/'result.txt').open('a') as out:out.write('PASS: production home/conversation/composer renderer with test-only visual fixtures; composer width and scoped SQLite migration checks. Fixtures do not validate Google login or live API replies.\n')
         print('KITTY cloud onboarding and native layout smoke checks passed.',flush=True)
     finally:
         (args.output/'logcat.txt').write_text(d.adb('logcat','-d'))
