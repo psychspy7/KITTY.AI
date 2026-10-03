@@ -26,7 +26,14 @@ final class ChatController {
     private void history(){loaded=false;int own=++viewGeneration;BrainClient.Session account=new BrainClient.Session(prefs);String session=prefs.session();disk.execute(()->{List<JSONObject> old=account.uid.isEmpty()?new ArrayList<>():store.recent(session,account.pairing,true);main.post(()->{if(own!=viewGeneration||!account.uid.equals(prefs.accountId()))return;turns.clear();turns.addAll(old);loaded=true;changed();sync();});});}
     void accountChanged(){stop();turns.clear();phase="Ready";history();}
     void newChat(){if(busy)return;prefs.newSession();turns.clear();loaded=true;phase="Ready";viewGeneration++;changed();}
-    void archive(Consumer<List<JSONObject>> result){BrainClient.Session account=new BrainClient.Session(prefs);disk.execute(()->{List<JSONObject> rows=store.recent(null,account.pairing,true);main.post(()->{if(account.current(prefs))result.accept(rows);});});}
+    void archive(Consumer<List<JSONObject>> result){
+        BrainClient.Session account=new BrainClient.Session(prefs);note("Loading your history");
+        network.execute(()->{JSONArray cloudRows=null;try{cloudRows=BrainClient.request(account,"/v1/history",null).getJSONArray("turns");}catch(Exception ignored){}
+            final JSONArray restored=cloudRows;disk.execute(()->{if(restored!=null)store.importCloud(account.pairing,restored);List<JSONObject> rows=store.recent(null,account.pairing,true);
+                main.post(()->{if(account.current(prefs)){note(restored==null?"Showing saved phone history · cloud unavailable":"Ready");result.accept(rows);}});
+            });
+        });
+    }
     private void save(JSONObject turn){try{JSONObject copy=new JSONObject(turn.toString());disk.execute(()->store.save(copy));}catch(JSONException e){throw new IllegalStateException(e);}}
     boolean send(String value){
         String text=value.trim();if(!loaded||busy||text.isEmpty()||text.length()>8000){note(busy?"Finish or stop the current reply first.":"Use a message under 8,000 characters.");return false;}

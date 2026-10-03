@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All app data goes through kittyApi, which verifies Firebase tokens and
+    // checks ownership on every operation. Even the admin phone cannot read keys.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

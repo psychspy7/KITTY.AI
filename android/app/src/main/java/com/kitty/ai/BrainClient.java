@@ -20,7 +20,7 @@ final class BrainClient {
     }
     interface Events {void event(String kind,JSONObject data);void failed(String message);}
     static void validateUrl(String base) throws IOException {
-        try{URI u=new URI(base);if(!"https".equals(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null||!u.getPath().isEmpty())throw new Exception();}
+        try{URI u=new URI(base);if(!"https".equals(u.getScheme())||u.getHost()==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null||!"/kittyApi".equals(u.getPath())||!u.getHost().endsWith(".cloudfunctions.net")||u.getPort()!=-1)throw new Exception();}
         catch(Exception e){throw new IOException("KITTY service setup is pending. Contact Virat.");}
     }
     private static Request requestFor(Session account,String path,JSONObject payload) throws Exception {
@@ -34,7 +34,7 @@ final class BrainClient {
         if(r.code()==401)throw new IOException("Your Google session needs attention. Sign out and sign in again.");
         if(r.code()==403)throw new IOException("This account cannot access that setting.");
         if(r.code()==429)throw new IOException("KITTY is busy. Please wait a moment and retry.");
-        if(r.code()==400&&r.body()!=null){BufferedSource source=r.body().source();source.request(4001);if(source.getBuffer().size()<=4000){try{throw new IOException(new JSONObject(source.readUtf8()).optString("error","Check your fields."));}catch(org.json.JSONException ignored){}}}
+        if((r.code()==400||r.code()==409||r.code()==503)&&r.body()!=null){BufferedSource source=r.body().source();source.request(4001);if(source.getBuffer().size()<=4000){try{throw new IOException(new JSONObject(source.readUtf8()).optString("error","Check your fields."));}catch(org.json.JSONException ignored){}}}
         if(!r.isSuccessful()||r.body()==null)throw new IOException("KITTY service could not complete this request ("+r.code()+").");
     }
     static JSONObject request(Prefs p,String path,JSONObject payload) throws Exception{return request(new Session(p),path,payload);}
@@ -54,7 +54,7 @@ final class BrainClient {
                     while(!s.exhausted()&&!c.isCanceled()){
                         String line=s.readUtf8LineStrict(100000);total+=line.length();if(total>2000000)throw new IOException("Response too large");
                         if(line.startsWith("event:"))kind=line.substring(6).trim();
-                        else if(line.startsWith("data:")){JSONObject event=new JSONObject(line.substring(5).trim());if(kind.equals("error"))throw new IOException("KITTY could not finish that reply. Please retry.");listener.event(kind,event);if(kind.equals("done")){done=true;break;}}
+                        else if(line.startsWith("data:")){JSONObject event=new JSONObject(line.substring(5).trim());if(kind.equals("error"))throw new IOException(event.optString("error","KITTY could not finish that reply. Please retry."));listener.event(kind,event);if(kind.equals("done")){done=true;break;}}
                     }
                     if(!done&&!c.isCanceled())throw new IOException("The reply was interrupted. Please retry.");
                 }catch(Exception e){if(!c.isCanceled())listener.failed(e.getMessage()==null?"Connection unavailable":e.getMessage());}

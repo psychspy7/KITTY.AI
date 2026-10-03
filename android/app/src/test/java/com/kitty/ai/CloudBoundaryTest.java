@@ -5,8 +5,8 @@ import static org.junit.Assert.*;
 
 public class CloudBoundaryTest {
     @Test public void httpsOriginsOnly() throws Exception {
-        BrainClient.validateUrl("https://kitty.example.com");
-        for(String bad:new String[]{"http://127.0.0.1:8765","http://example.com","https://user:secret@host","https://host/path","https://host?token=secret","https://host#token",""}){
+        BrainClient.validateUrl("https://asia-south1-kitty-demo.cloudfunctions.net/kittyApi");
+        for(String bad:new String[]{"http://127.0.0.1:8765","http://example.com","https://user:secret@host","https://host/path","https://host/kittyApi","https://kitty.cloudfunctions.net/kittyApi/","https://kitty.cloudfunctions.net:8443/kittyApi","https://host?token=secret","https://host#token",""}){
             try{BrainClient.validateUrl(bad);fail(bad);}catch(java.io.IOException expected){}
         }
     }

@@ -11,7 +11,7 @@ final class Prefs {
         p=c.getSharedPreferences("kitty",Context.MODE_PRIVATE);
         if(!p.getBoolean("cloud_only_v05",false))p.edit().remove("url").remove("token").remove("iv").remove("role").remove("account_id").remove("email").putBoolean("cloud_only_v05",true).putBoolean("speak",false).apply();
     }
-    String url(){return BuildConfig.KITTY_SERVER_URL;}
+    String url(){return BuildConfig.KITTY_API_URL;}
     boolean cloud(){return true;}
     String accountId(){FirebaseUser u=KittyApp.auth()==null?null:KittyApp.auth().getCurrentUser();return u==null?"":u.getUid();}
     boolean signedIn(){return !accountId().isEmpty();}

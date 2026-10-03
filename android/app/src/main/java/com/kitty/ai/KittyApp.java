@@ -8,7 +8,7 @@ import com.google.firebase.auth.FirebaseAuth;
 public final class KittyApp extends Application {
     private static FirebaseAuth auth;
     private ChatController chat;
-    static boolean configured(){return !BuildConfig.FIREBASE_APP_ID.isEmpty()&&!BuildConfig.FIREBASE_API_KEY.isEmpty()&&!BuildConfig.FIREBASE_PROJECT_ID.isEmpty()&&!BuildConfig.GOOGLE_WEB_CLIENT_ID.isEmpty()&&!BuildConfig.KITTY_SERVER_URL.isEmpty();}
+    static boolean configured(){return !BuildConfig.FIREBASE_APP_ID.isEmpty()&&!BuildConfig.FIREBASE_API_KEY.isEmpty()&&!BuildConfig.FIREBASE_PROJECT_ID.isEmpty()&&!BuildConfig.GOOGLE_WEB_CLIENT_ID.isEmpty()&&!BuildConfig.KITTY_API_URL.isEmpty();}
     @Override public void onCreate(){
         super.onCreate();
         if(configured()){

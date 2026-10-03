@@ -22,11 +22,14 @@ android {
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         minSdk 29
         targetSdk 35
-        versionCode 50
-        versionName '0.5.0'
-        def cloudUrl = System.getenv('KITTY_SERVER_URL') ?: ''
-        if (cloudUrl && !(cloudUrl ==~ /https:\/\/[A-Za-z0-9.-]+(:[0-9]+)?/)) throw new GradleException('KITTY_SERVER_URL must be a public HTTPS origin')
-        buildConfigField 'String', 'KITTY_SERVER_URL', '"' + cloudUrl + '"'
+        versionCode 60
+        versionName '0.6.0'
+        def region = System.getenv('KITTY_FIREBASE_REGION') ?: 'asia-south1'
+        if (!(region ==~ /[a-z]+-[a-z]+[0-9]+/)) throw new GradleException('Invalid Firebase region')
+        def project = firebaseFields.FIREBASE_PROJECT_ID
+        if (project && !(project ==~ /[a-z][a-z0-9-]{4,28}[a-z0-9]/)) throw new GradleException('Invalid Firebase project ID')
+        def apiUrl = project ? "https://${region}-${project}.cloudfunctions.net/kittyApi" : ''
+        buildConfigField 'String', 'KITTY_API_URL', groovy.json.JsonOutput.toJson(apiUrl)
         firebaseFields.each { key, value -> buildConfigField 'String', key, groovy.json.JsonOutput.toJson(value) }
     }
     buildFeatures { buildConfig true }

@@ -38,7 +38,7 @@ public final class MainActivity extends Activity {
         TextView title=d.text("A little wit.\nA lot of possibility.",39,Design.TEXT);title.setTypeface(Typeface.create("serif",Typeface.NORMAL));title.setLineSpacing(d.dp(3),1);content.addView(title);d.gap(content,20);
         content.addView(d.text("Meet KITTY. A helpful friend with a mischievous streak. Think, create and talk things through.",16,Design.MUTED));d.gap(content,32);
         Button google=d.button("Continue with Google",true,cloud::signIn);content.addView(google,new LinearLayout.LayoutParams(-1,d.dp(54)));d.gap(content,12);
-        content.addView(d.text(KittyApp.configured()?"One account. Your own conversations.\nNo API keys or setup needed.":"Service setup pending\nVirat is connecting Google login and the cloud service.",12,Design.MUTED));d.gap(content,24);
+        content.addView(d.text(KittyApp.configured()?"One account. Your own conversations.\nNo API keys or setup needed.":"Service setup pending\nVirat is connecting Firebase login and model APIs.",12,Design.MUTED));d.gap(content,24);
         root.addView(d.text("Made by Virat with the help of Kitty Corp.",11,Design.MUTED));
     }
     private void home(){
@@ -83,7 +83,7 @@ public final class MainActivity extends Activity {
         }
         status.setText(chat.phase);send.setText(chat.busy?"Stop":"Send");send.setEnabled(chat.loaded);input.setEnabled(chat.loaded&&!chat.busy);
     }
-    private void history(){chat.archive(rows->{if(isDestroyed())return;LinearLayout content=d.column();content.setPadding(d.dp(20),d.dp(12),d.dp(20),d.dp(12));if(rows.isEmpty())content.addView(d.text("Your saved conversations will appear here.",15,Design.MUTED));for(JSONObject row:rows){content.addView(d.label("YOU"));d.gap(content,6);content.addView(d.text(row.optString("input"),15,Design.TEXT));d.gap(content,10);content.addView(d.label("KITTY"));d.gap(content,6);TextView answer=d.text(row.optString("reply"),15,Design.MUTED);answer.setTextIsSelectable(true);content.addView(answer);d.gap(content,24);}ScrollView s=new ScrollView(this);s.addView(content);new AlertDialog.Builder(this).setTitle("Your history · on this phone").setView(s).setPositiveButton("Done",null).show();});}
+    private void history(){chat.archive(rows->{if(isDestroyed())return;LinearLayout content=d.column();content.setPadding(d.dp(20),d.dp(12),d.dp(20),d.dp(12));if(rows.isEmpty())content.addView(d.text("Your saved conversations will appear here.",15,Design.MUTED));for(JSONObject row:rows){content.addView(d.label("YOU"));d.gap(content,6);content.addView(d.text(row.optString("input"),15,Design.TEXT));d.gap(content,10);content.addView(d.label("KITTY"));d.gap(content,6);TextView answer=d.text(row.optString("reply"),15,Design.MUTED);answer.setTextIsSelectable(true);content.addView(answer);d.gap(content,24);}ScrollView s=new ScrollView(this);s.addView(content);new AlertDialog.Builder(this).setTitle("Your history · phone + Firebase").setView(s).setPositiveButton("Done",null).show();});}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==91&&result==RESULT_OK&&data!=null&&data.getData()!=null)cloud.saveTraining(data.getData());}
     @Override protected void onStart(){super.onStart();chat.foreground=true;}
     @Override protected void onStop(){chat.foreground=false;chat.stopAudio();super.onStop();}

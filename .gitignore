@@ -32,3 +32,14 @@ admin.sealed
 
 # Firebase public app config is restored from a repository variable during release.
 android/app/google-services.json
+
+# Firebase owner configuration and package caches
+functions/node_modules/
+functions/.env.*
+!functions/.env.example
+functions/.secret.local
+.firebase/
+firebase-debug.log
+firestore-debug.log
+.kitty*.local
+*-base64.local

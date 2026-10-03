@@ -1,56 +1,46 @@
-# KITTY AI 0.5 — cloud chat
+# KITTY AI · Firebase Edition · 0.6.0
 
-Made by Virat with the help of Kitty Corp.
+An Android companion made by **Virat with the help of Kitty Corp**. A polished native chat app with Google login, streamed model replies, personal memory and an owner-only console.
 
-**[Beginner setup: Firebase, cloud hosting and signed releases](docs/START_HERE_V05.md)**
+**Start here: [complete beginner setup guide](docs/START_HERE_V06.md).** The downloadable preview is unconfigured. A working installation requires your Firebase project, billing-enabled Functions, configured signed APK and provider key. Your laptop can be switched off after deployment.
 
-KITTY is now an API-powered Android chat app. Users sign in with Google through
-Firebase Authentication, then chat without entering API keys or connection details.
-The verified owner, `viratanand1221@gmail.com`, configures Groq, optional Gemini
-speech, core identity/personality, consented Drive backups and shared Inbox notices.
-Provider keys are encrypted on the cloud server and never returned to phones.
+## Current architecture
 
-The Android app has a navy/ivory/champagne design, a new adaptive cat emblem,
-streamed replies, account-separated local history, personal-memory sync, feedback,
-optional voice playback and Settings → Check for updates. Updates open an immutable
-official GitHub release page in the browser; KITTY does not install APKs itself.
+Android APK → Firebase Auth token → Firebase `kittyApi` HTTPS Function → Groq / Gemini / optional OpenAI → streamed reply. Cloud Firestore stores per-user history/memory and admin settings. Provider keys are AES-GCM encrypted; the vault master key stays in Secret Manager. No provider key is bundled in the APK.
 
-**No laptop pairing, microphone, background listener, accessibility control,
-contacts, calling, Shizuku, foreground service or installer permission remains in
-the Android app.** It does not control YouTube or other apps. Notices appear in
-Inbox when fetched; there are no background push notifications in this release.
+Only verified Google account **viratanand1221@gmail.com**, with its UID pinned by the project owner, can edit provider keys, models, core identity/character, service pause and notices. Regular users sign in and chat. Server authorization is authoritative; no phone email/role extra grants access.
 
-## Before it can go live
+The core prompt shapes replies before generation. This is not model fine-tuning. Personal memory is separate from core settings. Training exports require current consent and a reviewed useful/corrected reply.
 
-Create your Firebase project and Google sign-in configuration, deploy the persistent
-HTTPS backend, and build using your retained release signing key. Add the public
-Firebase Android JSON and cloud URL as GitHub repository variables. The release
-workflow checks these before publishing. No live Firebase project, cloud host or
-provider key is created by downloading this repository.
+## Included
 
-Unconfigured verification APKs display “Service setup pending.” They are UI test
-builds, not a working public chat service. Debug signing keys may differ between
-CI runs; production updates require the same retained release signing key.
+- Premium native Android interface and consistent KITTY icon/splash.
+- Firebase Google login and account-isolated local/cloud history.
+- Groq streaming, Gemini streaming/fallback and optional OpenAI chat.
+- Admin-only creator and character settings; deterministic identity replies.
+- Optional Gemini reply audio with Android TTS fallback; typed input.
+- Encrypted provider keys, bounded context, request retries and usage limits.
+- In-app notices and official signed release update checks.
+- Firebase Auth/Firestore emulator integration tests, Android tests and APK permission audit.
+
+## Setup and boundaries
+
+No always-on PC, VM, Docker, Turso, USB or local model is used by version 0.6. Old `server`, `cloud`, `deploy`, Python tests and older guides are historical reference; do not follow them for this edition. The new backend is entirely in `functions/`, with `firebase.json`, `firestore.rules` and `firestore.indexes.json` at the root.
+
+No microphone, accessibility, contacts, calls, installer or foreground-service permission is requested. This version does not listen in the background, control other apps, place calls, browse the live web or send background push notifications. API-generated knowledge alone is not live internet access. Scanner acceptance is not guaranteed.
+
+Firebase Functions requires Blaze billing. Providers/cloud resources may charge; budget alerts are not hard spending caps. Default application limits reduce usage, not all costs. Firebase project owners can administer stored data; chat is not end-to-end encrypted.
 
 ## Development
 
-- Android: Java 17, Android Gradle Plugin 8.13.2, compile SDK 36 / target 35,
-  Android 10+, Credential Manager, Firebase Auth, OkHttp. No Kotlin/Compose rewrite.
-- Cloud gateway: Python 3.11+, Firebase Admin SDK with revoked-token checks, Groq
-  SSE, optional Gemini TTS, SQLite on a persistent cloud volume. Docker/Caddy setup
-  is in `deploy/`; `python -m server.hosted` refuses local-token fallback.
-- Optional Turso remains a conversation archive replica; account records,
-  explicit personal memories and the encrypted key vault require the persistent
-  cloud volume. It is not a model-inference host.
-- Tests: `python -m unittest discover -s tests -v`; Android unit tests, lint,
-  built APK permission audit, emulator startup and native layout fixtures in CI.
-- Production releases: [release guide](docs/UPDATES_AND_RELEASES.md).
+```sh
+npm ci --prefix functions
+npm test --prefix functions
+npm run check --prefix functions
+# With Firebase CLI and Java 21 installed (emulators only; no paid deployment):
+firebase emulators:exec --project demo-kitty-ci --only firestore,auth "node --test functions/test/emulator.integration.cjs"
+```
 
-Historical model utilities and old guides remain for reference/testing, but the
-v0.5 Android app cannot connect to a laptop. Old Windows launcher scripts are
-removed. New installs must follow the v0.5 guide.
+Android: Java 17, Gradle wrapper, compile SDK 36, minimum Android 10/API 29. Add the public Firebase Android config at `android/app/google-services.json`; set `KITTY_FIREBASE_REGION` if changing from `asia-south1`. `./gradlew -p android testDebugUnitTest lintDebug assembleDebug` builds a preview. Production APK updates must retain the owner signing key.
 
-Hosted models retain their provider behavior. KITTY’s sassy character is an
-admin-controlled prompt, not fine-tuning or a promise of unrestricted compliance.
-Only explicitly consented, reviewed examples are exported for a separate training
-workflow. Chat archives do not automatically change model weights.
+See [.github/workflows/verify.yml](.github/workflows/verify.yml) for checks and [.github/workflows/release.yml](.github/workflows/release.yml) for signed releases. Never commit model keys, passwords, keystores or vault-key files.

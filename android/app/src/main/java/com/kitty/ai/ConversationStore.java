@@ -32,6 +32,17 @@ final class ConversationStore extends SQLiteOpenHelper {
     JSONArray pending(String owner){JSONArray rows=new JSONArray();int bytes=0;try(Cursor c=getReadableDatabase().rawQuery("SELECT * FROM turns WHERE synced=0 AND mode!='pending' AND pairing=? ORDER BY created LIMIT 20",new String[]{owner})){while(c.moveToNext()){JSONObject t=row(c);bytes+=t.toString().getBytes(StandardCharsets.UTF_8).length;if(bytes>200000)break;rows.put(t);}}catch(JSONException e){throw new IllegalStateException(e);}return rows;}
     void synced(JSONArray ids){for(int i=0;i<ids.length();i++){ContentValues v=new ContentValues();v.put("synced",1);getWritableDatabase().update("turns",v,"id=?",new String[]{ids.optString(i)});}}
 
+    void importCloud(String owner,JSONArray rows){
+        SQLiteDatabase db=getWritableDatabase();db.beginTransaction();try{
+            for(int i=0;i<rows.length();i++){JSONObject t=rows.optJSONObject(i);if(t==null||!t.optString("id").matches("[A-Za-z0-9_-]{1,128}"))continue;
+                ContentValues v=new ContentValues();for(String key:new String[]{"id","session","input","reply","mode"})v.put(key,t.optString(key));
+                v.put("source","firebase");v.put("metadata","{}");v.put("created",t.optLong("created"));v.put("pairing",owner);v.put("synced",1);
+                // Keep local pending/interrupted edits; restored cloud turns are inserted once.
+                db.insertWithOnConflict("turns",null,v,SQLiteDatabase.CONFLICT_IGNORE);
+            }db.setTransactionSuccessful();
+        }finally{db.endTransaction();}
+    }
+
     JSONArray memoryPending(String owner){JSONArray rows=new JSONArray();int bytes=0;try(Cursor c=getReadableDatabase().rawQuery("SELECT id,text,deleted FROM memories WHERE pairing=? AND dirty=1 LIMIT 8",new String[]{owner})){while(c.moveToNext()){JSONObject row=new JSONObject().put("id",c.getString(0)).put("text",c.getString(1)).put("deleted",c.getInt(2)!=0);bytes+=row.toString().getBytes(StandardCharsets.UTF_8).length;if(bytes>18000)break;rows.put(row);}}catch(JSONException e){throw new IllegalStateException(e);}return rows;}
     void memoryMerged(String owner,JSONArray accepted,JSONArray rows){
         SQLiteDatabase db=getWritableDatabase();db.beginTransaction();try{

@@ -1,0 +1,8 @@
+{
+  "indexes": [
+    {"collectionGroup":"turns","queryScope":"COLLECTION","fields":[{"fieldPath":"session","order":"ASCENDING"},{"fieldPath":"created","order":"DESCENDING"}]}
+  ],
+  "fieldOverrides": [
+    {"collectionGroup":"turns","fieldPath":"exportable","indexes":[{"order":"ASCENDING","queryScope":"COLLECTION_GROUP"}]}
+  ]
+}
