@@ -58,7 +58,12 @@ final class CloudUi {
                     }catch(Exception e){main.post(()->{signingIn=false;error(e.getMessage());});}});
                 }catch(Exception e){signingIn=false;error("Google sign-in returned an unsupported credential. Update Google Play services and retry.");}
             }
-            @Override public void onError(GetCredentialException e){signingIn=false;error("Google sign-in was cancelled or unavailable. Check your Google account, Play services and the app's OAuth setup.");}
+            @Override public void onError(GetCredentialException e){
+                signingIn=false;
+                if(e instanceof NoCredentialException)error("No Google credential is available. Add a Google account in Android Settings, update Play services, and ask the admin to check this APK's OAuth certificate.");
+                else if(e instanceof GetCredentialCancellationException)Toast.makeText(activity,"Google sign-in cancelled",Toast.LENGTH_SHORT).show();
+                else error("Google sign-in is unavailable. Check Play services and the admin's OAuth setup, then retry.");
+            }
         });
     }
     void settings(){
