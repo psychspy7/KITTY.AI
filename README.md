@@ -34,7 +34,7 @@ CI runs; production updates require the same retained release signing key.
 
 ## Development
 
-- Android: Java 17, Android Gradle Plugin 8.9.2, compile SDK 36 / target 35,
+- Android: Java 17, Android Gradle Plugin 8.13.2, compile SDK 36 / target 35,
   Android 10+, Credential Manager, Firebase Auth, OkHttp. No Kotlin/Compose rewrite.
 - Cloud gateway: Python 3.11+, Firebase Admin SDK with revoked-token checks, Groq
   SSE, optional Gemini TTS, SQLite on a persistent cloud volume. Docker/Caddy setup

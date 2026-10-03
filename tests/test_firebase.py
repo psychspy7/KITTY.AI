@@ -1,5 +1,7 @@
 """Cloud auth boundaries with Firebase verifier fixtures, no live credentials."""
 import json
+import http.client
+import threading
 import os
 from pathlib import Path
 import tempfile
@@ -7,7 +9,7 @@ import types
 import unittest
 from unittest.mock import Mock, patch
 from server.accounts import Accounts, ADMIN_EMAIL, CHARACTER, CREATOR
-from server.kitty import Brain, initialize, GenerationControl
+from server.kitty import Brain, Server, initialize, GenerationControl
 from server.access import scope_body
 from server.hosted import validate_environment
 import uuid
@@ -72,6 +74,29 @@ class FirebaseTests(unittest.TestCase):
         admin=self.login(self.claims('virat',ADMIN_EMAIL));self.a.configure(admin,{'groq_key':'KEY-PRIVATE','gemini_key':'SPEECH-PRIVATE'})
         self.assertNotIn('PRIVATE',json.dumps(self.a.settings()))
         self.assertNotIn(b'KEY-PRIVATE',(self.home/'admin.sealed').read_bytes())
+    def test_http_admin_routes_reject_role_spoofing_and_legacy_login(self):
+        server=Server(('127.0.0.1',0),self.brain)
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        def verify(token):
+            if token=='admin':return self.claims('virat',ADMIN_EMAIL)
+            if token=='user':return self.claims()
+            raise ValueError('Invalid Firebase token')
+        def request(path,token,body=None):
+            c=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=5)
+            headers={'Authorization':'Bearer '+token}
+            if body is not None:headers['Content-Type']='application/json'
+            c.request('POST' if body is not None else 'GET',path,None if body is None else json.dumps(body),headers)
+            r=c.getresponse();result=r.status,json.loads(r.read());c.close();return result
+        try:
+            with patch.object(self.a,'verify_firebase',side_effect=verify):
+                self.assertEqual(request('/v1/admin/settings','user',{'role':'admin','email':ADMIN_EMAIL,'groq_key':'stolen'})[0],403)
+                status,settings=request('/v1/admin/settings','admin',{'groq_key':'server-only'})
+                self.assertEqual(status,200);self.assertTrue(settings['groq_configured']);self.assertNotIn('server-only',json.dumps(settings))
+                self.assertEqual(request('/v1/me','invalid')[0],401)
+                self.assertEqual(request('/v1/me','user')[1]['role'],'user')
+                self.assertEqual(request('/v1/auth/google','user',{})[0],410)
+        finally:server.shutdown();server.server_close();thread.join()
+
     def test_hosted_entry_requires_config_and_rejects_emulator_tokens(self):
         validate_environment()
         with patch.dict(os.environ,{'FIREBASE_PROJECT_ID':''}):

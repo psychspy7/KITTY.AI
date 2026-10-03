@@ -58,7 +58,7 @@ public final class MainActivity extends Activity {
     private void submit(){if(chat.busy){chat.stop();return;}if(chat.send(input.getText().toString())){input.setText("");((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(input.getWindowToken(),0);}}
     private void empty(){
         LinearLayout card=d.column();card.setPadding(d.dp(22),d.dp(24),d.dp(22),d.dp(24));card.setBackground(d.outline(Design.CARD,24));card.addView(d.label("GOOD TO SEE YOU"));d.gap(card,16);
-        TextView title=d.text("What’s on\nyour mind, Sir?",32,Design.TEXT);title.setTypeface(Typeface.create("serif",0));card.addView(title);d.gap(card,14);card.addView(d.text("Big ideas, small dilemmas, questionable jokes. I’m here for all of it.",14,Design.MUTED));d.gap(card,20);
+        TextView title=d.text("What’s on\nyour mind, Sir?",32,Design.TEXT);title.setTypeface(Typeface.create("serif",Typeface.NORMAL));card.addView(title);d.gap(card,14);card.addView(d.text("Big ideas, small dilemmas, questionable jokes. I’m here for all of it.",14,Design.MUTED));d.gap(card,20);
         for(String prompt:new String[]{"Introduce yourself","Help me plan my day","Turn my idea into something great"}){card.addView(d.button(prompt,false,()->{input.setText(prompt);input.setSelection(input.length());input.requestFocus();}));}conversation.addView(card);
     }
     private void render(){

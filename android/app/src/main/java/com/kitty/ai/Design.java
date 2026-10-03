@@ -20,7 +20,7 @@ final class Design {
     LinearLayout row(){LinearLayout l=new LinearLayout(a);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(android.view.Gravity.CENTER_VERTICAL);return l;}
     void gap(LinearLayout parent,int n){View v=new View(a);parent.addView(v,new LinearLayout.LayoutParams(1,dp(n)));}
     Button button(String label,boolean primary,Runnable action){
-        Button b=new Button(a);b.setText(label);b.setAllCaps(false);b.setTextSize(14);b.setTypeface(Typeface.create("sans-serif-medium",0));b.setTextColor(primary?BG:TEXT);b.setBackgroundTintList(ColorStateList.valueOf(primary?GOLD:CARD));b.setMinHeight(dp(50));b.setOnClickListener(v->action.run());return b;
+        Button b=new Button(a);b.setText(label);b.setAllCaps(false);b.setTextSize(14);b.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setTextColor(primary?BG:TEXT);b.setBackground(new android.graphics.drawable.RippleDrawable(ColorStateList.valueOf(0x26FFFFFF),surface(primary?GOLD:CARD,16),null));b.setPadding(dp(14),dp(8),dp(14),dp(8));b.setMinHeight(dp(50));b.setOnClickListener(v->action.run());return b;
     }
     EditText field(String hint,String value,boolean secret){EditText e=new EditText(a);e.setText(value);e.setHint(hint);e.setTextSize(15);e.setTextColor(TEXT);e.setHintTextColor(MUTED);e.setBackground(outline(CARD,14));e.setPadding(dp(14),dp(12),dp(14),dp(12));e.setInputType(android.text.InputType.TYPE_CLASS_TEXT|(secret?android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD:android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES));e.setSaveEnabled(!secret);return e;}
 }
