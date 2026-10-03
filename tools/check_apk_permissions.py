@@ -26,6 +26,8 @@ def check_manifest(path):
 
 def main():
     p=argparse.ArgumentParser();p.add_argument('--apk',type=Path,required=True);p.add_argument('--aapt2',type=Path,required=True);p.add_argument('--merged-manifest',type=Path,required=True);args=p.parse_args()
+    root=ET.parse(args.merged_manifest).getroot()
+    print("Merged permission names:", [n.get(ANDROID+"name") for n in root if n.tag.startswith("uses-permission")],flush=True)
     check_manifest(args.merged_manifest)
     output=subprocess.check_output([str(args.aapt2),'dump','permissions',str(args.apk)],text=True)
     permissions=set(re.findall(r"uses-permission[^\n]*name='([^']+)'",output))
