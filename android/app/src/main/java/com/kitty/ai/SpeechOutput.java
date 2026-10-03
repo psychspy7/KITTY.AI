@@ -19,7 +19,7 @@ final class SpeechOutput {
         prefs=new Prefs(c);cloud=new CloudVoice(c);audio=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE);
         AudioAttributes attrs=new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
         focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attrs).setOnAudioFocusChangeListener(value->{if(value<0)stop();},main).build();
-        tts=new TextToSpeech(c,code->main.post(()->{ready=code==TextToSpeech.SUCCESS;failed=!ready;if(ready){ready=Speech.configure(tts,prefs);failed=!ready;tts.setAudioAttributes(attrs);}if(ready){while(!waiting.isEmpty())enqueue(waiting.removeFirst());}else{waiting.clear();issue="Install an offline TTS voice in Android settings";}finish();changed.run();}));
+        tts=new TextToSpeech(c,code->main.post(()->{ready=code==TextToSpeech.SUCCESS;failed=!ready;if(ready){ready=tts.setLanguage(Locale.forLanguageTag("en-IN"))>=TextToSpeech.LANG_AVAILABLE;failed=!ready;tts.setAudioAttributes(attrs);}if(ready){while(!waiting.isEmpty())enqueue(waiting.removeFirst());}else{waiting.clear();issue="Install an offline TTS voice in Android settings";}finish();changed.run();}));
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener(){public void onStart(String id){}public void onDone(String id){main.post(()->complete(id));}public void onError(String id){onDone(id);}public void onStop(String id,boolean interrupted){onDone(id);}});
     }
     boolean active(){return active;}
@@ -27,7 +27,7 @@ final class SpeechOutput {
     void begin(){stop();open=true;}
     void beginCloud(){begin();cloudPreferred=prefs.cloud()&&prefs.p.getBoolean("speech_ready",false)&&prefs.p.getBoolean("cloud_voice",true);}
     void enqueue(String text){
-        text=text.replaceAll("[*#`]","").trim();if(text.isEmpty()||!prefs.speak())return;
+        text=text.replaceAll("[*#`]","").trim();if(text.isEmpty())return;
         if(cloudPreferred){
             if(!active&&audio.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){issue="Audio focus unavailable; open KITTY to hear replies";changed.run();return;}
             active(true);int own=generation;
@@ -41,7 +41,7 @@ final class SpeechOutput {
         active(true);String id=generation+"-"+UUID.randomUUID();utterances.add(id);
         if(tts.speak(text.substring(0,Math.min(3500,text.length())),TextToSpeech.QUEUE_ADD,null,id)==TextToSpeech.ERROR)complete(id);
         int own=generation;
-        main.postDelayed(()->{if(own==generation&&utterances.contains(id)){issue="Speech engine stalled; tap to talk to retry";stop();changed.run();}},120000);
+        main.postDelayed(()->{if(own==generation&&utterances.contains(id)){issue="Speech engine stalled; try read aloud again";stop();changed.run();}},120000);
     }
     private void complete(String id){utterances.remove(id);finish();}
     void end(){open=false;finish();}

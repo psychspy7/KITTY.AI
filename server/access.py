@@ -13,7 +13,7 @@ def load_env(path):
     """Read only known keys, without shell evaluation or overriding process env."""
     if not path.exists():
         return
-    allowed = {"TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BRAVE_SEARCH_API_KEY", "GOOGLE_WEB_CLIENT_ID", "GOOGLE_WEB_CLIENT_SECRET", "KITTY_PUBLIC_URL"}
+    allowed = {"TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "BRAVE_SEARCH_API_KEY", "GOOGLE_WEB_CLIENT_ID", "GOOGLE_WEB_CLIENT_SECRET", "KITTY_PUBLIC_URL", "FIREBASE_PROJECT_ID", "GOOGLE_APPLICATION_CREDENTIALS"}
     values = {}
     for line in path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()

@@ -1,23 +1,35 @@
 plugins { id 'com.android.application' }
+// google-services.json is public Firebase app configuration, never a service-account key.
+def firebaseFile = file('google-services.json')
+def firebase = firebaseFile.exists() ? new groovy.json.JsonSlurper().parse(firebaseFile) : [:]
+def androidClient = (firebase.client ?: []).find { it.client_info?.android_client_info?.package_name == 'com.kitty.ai' } ?: [:]
+def firebaseFields = [
+    FIREBASE_PROJECT_ID: firebase.project_info?.project_id ?: '',
+    FIREBASE_APP_ID: androidClient.client_info?.mobilesdk_app_id ?: '',
+    FIREBASE_API_KEY: (androidClient.api_key ?: []).find { it.current_key }?.current_key ?: '',
+    GOOGLE_WEB_CLIENT_ID: (androidClient.oauth_client ?: []).find { it.client_type == 3 }?.client_id ?: ''
+]
+if (firebaseFile.exists() && firebaseFields.values().any { !it }) throw new GradleException('Firebase Android config is incomplete. Enable Google Auth and download google-services.json again.')
 android {
     namespace 'com.kitty.ai'
-    compileSdk 35
+    compileSdk 36
     def releaseKeystorePath = System.getenv('KITTY_KEYSTORE_PATH')
     def releaseStorePassword = System.getenv('KITTY_STORE_PASSWORD')
     def releaseKeyAlias = System.getenv('KITTY_KEY_ALIAS')
     def releaseKeyPassword = System.getenv('KITTY_KEY_PASSWORD')
     defaultConfig {
         applicationId 'com.kitty.ai'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         minSdk 29
         targetSdk 35
-        versionCode 40
-        versionName '0.4.0'
+        versionCode 50
+        versionName '0.5.0'
         def cloudUrl = System.getenv('KITTY_SERVER_URL') ?: ''
         if (cloudUrl && !(cloudUrl ==~ /https:\/\/[A-Za-z0-9.-]+(:[0-9]+)?/)) throw new GradleException('KITTY_SERVER_URL must be a public HTTPS origin')
         buildConfigField 'String', 'KITTY_SERVER_URL', '"' + cloudUrl + '"'
-        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+        firebaseFields.each { key, value -> buildConfigField 'String', key, groovy.json.JsonOutput.toJson(value) }
     }
-    buildFeatures { aidl true; buildConfig true }
+    buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     signingConfigs {
         release {
@@ -35,20 +47,19 @@ android {
             if (releaseKeystorePath) signingConfig signingConfigs.release
         }
     }
-    packaging { jniLibs { useLegacyPackaging true } }
     lint { abortOnError true }
 }
 dependencies {
-    implementation 'dev.rikka.shizuku:api:13.1.5'
-    implementation 'dev.rikka.shizuku:provider:13.1.5'
+    implementation platform('com.google.firebase:firebase-bom:34.19.0')
+    implementation 'com.google.firebase:firebase-auth'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'androidx.core:core:1.15.0'
     implementation 'androidx.credentials:credentials:1.5.0'
     implementation 'androidx.credentials:credentials-play-services-auth:1.5.0'
     implementation 'com.google.android.libraries.identity.googleid:googleid:1.1.1'
-    implementation 'androidx.work:work-runtime:2.10.0'
-    implementation 'com.alphacephei:vosk-android:0.3.75@aar'
-    implementation 'net.java.dev.jna:jna:5.18.1@aar'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
 }

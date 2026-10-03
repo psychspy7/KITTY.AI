@@ -1,16 +1,16 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#B7E6C8</item>
+        <item name="android:colorAccent">#E8C791</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">#0A1113</item>
-        <item name="android:navigationBarColor">#0A1113</item>
+        <item name="android:statusBarColor">#0C101C</item>
+        <item name="android:navigationBarColor">#0C101C</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:windowBackground">#0A1113</item>
+        <item name="android:windowBackground">#0C101C</item>
         <item name="android:alertDialogTheme">@style/KittyDialog</item>
-        <item name="android:windowSplashScreenBackground">#0A1113</item>
+        <item name="android:windowSplashScreenBackground">#0C101C</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_kitty</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">#203A32</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#0C101C</item>
     </style>
 </resources>

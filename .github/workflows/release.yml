@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing release tag to publish (for example v0.3.0)'
+        description: 'Existing release tag to publish (for example v0.5.0)'
         required: true
         type: string
 
@@ -40,6 +40,22 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Restore Firebase public Android configuration
+        env:
+          KITTY_FIREBASE_ANDROID_CONFIG: ${{ vars.KITTY_FIREBASE_ANDROID_CONFIG }}
+          KITTY_SERVER_URL: ${{ vars.KITTY_SERVER_URL }}
+        run: |
+          python - <<'PYCFG'
+          import json, os
+          from pathlib import Path
+          if not os.environ.get('KITTY_SERVER_URL', '').startswith('https://'):
+              raise SystemExit('Add KITTY_SERVER_URL repository variable first')
+          raw = os.environ.get('KITTY_FIREBASE_ANDROID_CONFIG', '')
+          if not raw: raise SystemExit('Add KITTY_FIREBASE_ANDROID_CONFIG repository variable first')
+          cfg = json.loads(raw)
+          if 'private_key' in cfg or 'project_info' not in cfg: raise SystemExit('Use google-services.json, never a service-account private key')
+          Path('android/app/google-services.json').write_text(json.dumps(cfg))
+          PYCFG
       - name: Restore signing key
         env:
           KITTY_KEYSTORE_B64: ${{ secrets.KITTY_KEYSTORE_B64 }}
@@ -55,6 +71,8 @@ jobs:
           KITTY_KEY_PASSWORD: ${{ secrets.KITTY_KEY_PASSWORD }}
           KITTY_SERVER_URL: ${{ vars.KITTY_SERVER_URL }}
         run: ./gradlew --no-daemon clean testDebugUnitTest lintDebug assembleRelease
+      - name: Audit release APK permissions
+        run: python tools/check_apk_permissions.py --apk android/app/build/outputs/apk/release/app-release.apk --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" --merged-manifest android/app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
       - name: Prepare release metadata
         id: metadata
         run: |

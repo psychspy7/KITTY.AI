@@ -1,0 +1,35 @@
+services:
+  kitty:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-admin.json
+    volumes:
+      - kitty-data:/data
+      - ./firebase-admin.json:/run/secrets/firebase-admin.json:ro
+    networks: [kitty-internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=5)"]
+      interval: 30s
+      timeout: 6s
+      retries: 3
+  https:
+    image: caddy:2.10
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [kitty-internal]
+    depends_on: [kitty]
+volumes:
+  kitty-data:
+  caddy-data:
+  caddy-config:
+networks:
+  kitty-internal:

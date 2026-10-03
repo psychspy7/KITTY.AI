@@ -8,7 +8,8 @@ on:
       - '*.bat'
       - 'requirements-turso.txt'
       - 'requirements-cloud.txt'
-      - 'docs/START_HERE_V03.md'
+      - 'docs/START_HERE_V05.md'
+      - 'deploy/**'
       - 'tools/**'
       - '.github/workflows/verify.yml'
   pull_request:
@@ -19,7 +20,8 @@ on:
       - '*.bat'
       - 'requirements-turso.txt'
       - 'requirements-cloud.txt'
-      - 'docs/START_HERE_V03.md'
+      - 'docs/START_HERE_V05.md'
+      - 'deploy/**'
       - 'tools/**'
       - '.github/workflows/verify.yml'
   workflow_dispatch:
@@ -49,8 +51,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, unit tests and lint
         working-directory: android
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
-      - name: Record APK identity for Google OAuth setup
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease assembleDebugAndroidTest
+      - name: Audit merged and packaged permissions
+        run: |
+          python tools/check_apk_permissions.py --apk android/app/build/outputs/apk/debug/app-debug.apk --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" --merged-manifest android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml > android/app/build/reports/permissions.txt
+          cat android/app/build/reports/permissions.txt
+      - name: Record APK identity for Firebase setup
         run: |
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk > android/app/build/reports/apk-certificate.txt
           cat android/app/build/reports/apk-certificate.txt
@@ -63,6 +69,10 @@ jobs:
           name: KITTY-AI-unsigned-release
           path: android/app/build/outputs/apk/release/app-release-unsigned.apk
       - uses: actions/upload-artifact@v4
+        with:
+          name: KITTY-UI-test-apk
+          path: android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: KITTY-Android-test-reports
@@ -70,6 +80,7 @@ jobs:
             android/app/build/reports/tests/
             android/app/build/reports/lint-results-debug.html
             android/app/build/reports/apk-certificate.txt
+            android/app/build/reports/permissions.txt
   emulator:
     needs: android
     runs-on: ubuntu-latest
@@ -87,12 +98,16 @@ jobs:
         with:
           name: KITTY-AI-debug-apk
           path: android/app/build/outputs/apk/debug
+      - uses: actions/download-artifact@v4
+        with:
+          name: KITTY-UI-test-apk
+          path: android/app/build/outputs/apk/androidTest/debug
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Phone and gateway smoke checks
+      - name: Cloud onboarding, permission and native layout checks
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35

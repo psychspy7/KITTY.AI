@@ -45,6 +45,10 @@ def groq_stream(key, model, messages, control, emit, stream_function):
     payload = {"model": model_name(model), "messages": messages, "stream": True,
                "temperature": .65, "max_completion_tokens": 768,
                "stream_options": {"include_usage": True}}
+    if model.startswith("openai/gpt-oss-"):
+        payload["reasoning_effort"] = "low"
+        payload["reasoning_format"] = "hidden"
+        payload["max_completion_tokens"] = 1536
     answer, usage = "", {}
     for chunk in stream_function("https://api.groq.com/openai/v1/chat/completions", payload,
                                  control, 35, {"Authorization": "Bearer "+key}):

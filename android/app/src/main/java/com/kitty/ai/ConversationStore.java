@@ -12,9 +12,7 @@ import java.util.*;
 final class ConversationStore extends SQLiteOpenHelper {
     private final Prefs prefs;
     ConversationStore(Context c){super(c,"conversations.db",null,5);prefs=new Prefs(c);setWriteAheadLoggingEnabled(true);}
-    String pairing(){
-        String token=prefs.token();return pairing(prefs.url(),prefs.cloud()?prefs.accountId():token,token.isEmpty());
-    }
+    String pairing(){return pairing(prefs.url(),prefs.accountId(),prefs.accountId().isEmpty());}
     static String pairing(String url,String identity,boolean empty){
         if(empty)return "unpaired";
         try{MessageDigest digest=MessageDigest.getInstance("SHA-256");byte[] bytes=digest.digest((url+"\n"+identity).getBytes(StandardCharsets.UTF_8));StringBuilder id=new StringBuilder();for(byte b:bytes)id.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return id.toString();}
@@ -44,7 +42,7 @@ final class ConversationStore extends SQLiteOpenHelper {
         }finally{db.endTransaction();}
     }
     String memoryCommand(String owner,String input){
-        String text=Router.stripWake(input);java.util.regex.Matcher remember=java.util.regex.Pattern.compile("(?is)remember(?: that)?\\s+(.+)").matcher(text);
+        String text=input.trim();java.util.regex.Matcher remember=java.util.regex.Pattern.compile("(?is)remember(?: that)?\\s+(.+)").matcher(text);
         if(remember.matches()){
             String value=remember.group(1).trim();if(value.isEmpty()||value.length()>2000)return "Sir, use a memory under 2,000 characters.";
             try(Cursor c=getReadableDatabase().rawQuery("SELECT count(*) FROM memories WHERE pairing=? AND deleted=0",new String[]{owner})){c.moveToFirst();if(c.getInt(0)>=50)return "Sir, memory holds fifty entries. Forget an old entry first.";}

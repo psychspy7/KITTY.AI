@@ -46,7 +46,7 @@ except ImportError:
     from accounts import Accounts
     from providers import ProviderError
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HOME = ROOT / "data"
 SYSTEM = """You are KITTY AI, Virat's personal AI companion. Virat conceived and
@@ -416,7 +416,7 @@ class Brain:
         self.store.purge(self.config.get("history_days", 0))
         self.lock = threading.Lock()
         self.pending = {}
-        self.model_gate = threading.BoundedSemaphore(4 if os.environ.get("GOOGLE_WEB_CLIENT_ID") else 1)
+        self.model_gate = threading.BoundedSemaphore(4 if (os.environ.get("GOOGLE_WEB_CLIENT_ID") or os.environ.get("FIREBASE_PROJECT_ID")) else 1)
         self.access = Access(home)
         self.accounts = Accounts(home,self.store)
 
@@ -514,7 +514,7 @@ class Brain:
         m = re.fullmatch(r"(?:(?:what(?:'s| is)\s+)?(?:the\s+)?)weather(?:\s+(?:in|at|for)\s+(.+?))?[?.!]*", clean, re.I)
         if m:
             if not self.config.get("weather_enabled", True):
-                result["reply"] = "Sir, live weather is disabled in the laptop configuration."
+                result["reply"] = "Sir, live weather is disabled in the service configuration."
                 return result
             city = (m[1] or ("" if guest else self.config.get("weather_city", ""))).strip()
             if not city:
@@ -523,7 +523,7 @@ class Brain:
                 try:
                     result["reply"] = weather(city, self.config.get("weather_country", "IN"))
                 except (OSError, ValueError, KeyError, URLError):
-                    result["reply"] = "Sir, I couldn't fetch live weather. I won't improvise a forecast. Try again when the laptop is online."
+                    result["reply"] = "Sir, I couldn't fetch live weather. I won't improvise a forecast. Try again when the service is available."
             result["mode"] = "weather"
             return result
         if self.accounts.enabled:
@@ -700,7 +700,7 @@ class Server(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "Kitty/0.4"
+    server_version = "Kitty/0.5"
 
     def setup(self):
         super().setup()
@@ -734,7 +734,7 @@ class Handler(BaseHTTPRequestHandler):
         token=value[7:] if value.startswith("Bearer ") else ""
         self.actor = b.accounts.authenticate(token) if b.accounts.enabled else b.access.authenticate(token,b.config["token"])
         if not self.actor:
-            self.reply(401, {"error": "Pairing token required"})
+            self.reply(401, {"error": "Sign in with Google" if b.accounts.enabled else "Pairing token required"})
             return False
         with self.server.rate_lock:
             now = time.monotonic()
@@ -817,7 +817,7 @@ class Handler(BaseHTTPRequestHandler):
         except (TimeoutError, socket.timeout):
             self.reply(504, {"error": "Request timed out"})
         except Exception:
-            self.reply(500, {"error": "Server error; check the laptop database and configuration"})
+            self.reply(500, {"error": "Service error; ask the admin to check its configuration"})
 
     def stream_chat(self, body):
         events = queue.Queue(maxsize=128)

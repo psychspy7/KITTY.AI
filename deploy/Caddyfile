@@ -1,0 +1,10 @@
+{$KITTY_DOMAIN} {
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+    }
+    reverse_proxy kitty:8765 {
+        flush_interval -1
+    }
+}

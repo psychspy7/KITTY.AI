@@ -1,42 +1,30 @@
-# App updates and signed releases
+# KITTY 0.5 updates and signed releases
 
-KITTY v0.4 has an **Update** button in the Android header and in Settings. It reads `release/update.json` over HTTPS. When a newer version code is published, it downloads the immutable tagged GitHub APK, checks SHA-256, application ID, version and signing certificate against the installed app, then opens Android's installer. Android asks you to approve the install. Incompatible signatures are blocked before installation.
+Settings → **Check for updates** reads `release/update.json` over HTTPS. A newer
+version opens the immutable official GitHub release page in the browser. Android
+handles downloading and installation. KITTY has no APK installer permission.
 
-Android accepts an in-place update only when the new APK uses the same application ID and the same signing key. Keep the original `KITTY-AI` keystore in a password manager and make an encrypted offline backup. Never commit the keystore or its passwords.
+Follow the complete [Firebase/cloud/release setup guide](START_HERE_V05.md),
+including the retained signing key, the `KITTY_SERVER_URL` and
+`KITTY_FIREBASE_ANDROID_CONFIG` repository variables, and four signing secrets.
+The Firebase variable must be `google-services.json`, never a private Admin SDK key.
 
-## First-time GitHub setup
-
-The repository includes `.github/workflows/release.yml`. Add these repository secrets in GitHub → **Settings → Secrets and variables → Actions**:
-
-| Secret | Value |
-| --- | --- |
-| `KITTY_KEYSTORE_B64` | Base64 of the retained `.jks` signing key |
-| `KITTY_STORE_PASSWORD` | Keystore password |
-| `KITTY_KEY_ALIAS` | The key alias |
-| `KITTY_KEY_PASSWORD` | Key password |
-
-On Windows PowerShell, create the first value with:
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\kitty-release.jks"))
-```
-
-An installed v0.2 debug APK can only receive future in-place updates if the signed release uses the **exact same signing key**. Each CI runner may use a different debug key. If no retained key matches the currently installed APK, the update button will explain why it cannot proceed. Back up the phone's data before considering a replacement; do not uninstall without a backup.
-
-Set repository **variable** `KITTY_SERVER_URL` to the gateway HTTPS origin before building a cloud release. It is a public address, not a provider secret. The release workflow embeds it for Google-first onboarding. Run Verify KITTY on main and resolve failures before tagging. Register the actual release signing certificate SHA-1 with the Android Google OAuth client.
-
-## Publish a release
+For each release:
 
 1. Increase `versionCode` and `versionName` in `android/app/build.gradle`.
-2. Add the user-facing notes to `release/update.json` only if you want to preview them; the release workflow writes the final checksum and version.
-3. Commit and push the version change.
-4. Create and push a tag, for example:
+2. Commit/push and wait for Verify KITTY to pass.
+3. Tag exactly that version and push it, e.g. `git tag v0.5.1` followed by
+   `git push origin v0.5.1`.
+4. Check Build signed KITTY release. It requires configured Firebase, HTTPS origin
+   and the retained signing key; it audits packaged permissions before publishing.
+5. Confirm the tagged APK/checksum and `release/update.json` both appeared.
+6. Test an in-place update from the previous release on a real phone.
 
-```bash
-git tag v0.4.0
-git push origin v0.4.0
-```
+Provider/character changes in Admin console do not require a new APK. Notices go
+to Inbox and do not publish an APK. Server changes require updating the cloud VM
+container while preserving its data volume.
 
-The workflow builds a signed APK, publishes `KITTY-AI-release.apk` to the GitHub release, calculates its SHA-256, and updates `release/update.json` on `main`. Open the Actions run and confirm both the release and manifest update succeeded before pressing **Update** in the phone app.
-
-The manifest is published only after the tag's server tests, Android tests/lint, signed build and release publication succeed. Check the Actions run before using Update. The update checker does not silently install or execute anything.
+Debug preview keys can differ across CI runs. Do not promise an in-place update
+from an old debug APK. Android requires the same application ID and signing key.
+Uninstalling deletes the local archive. Use Google Play tracks if you want store-
+managed installs, subject to the publisher account and review requirements.

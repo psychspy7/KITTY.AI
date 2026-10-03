@@ -93,7 +93,7 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(result['mode'],'model');self.assertIn('FIRST-SECRET',json.dumps(captured));self.assertNotIn('SECOND-SECRET',json.dumps(captured))
     def test_identity_does_not_require_provider_call(self):
         _,reply=self.request('/v1/chat',{'text':'who created you','request_id':str(uuid.uuid4()),'session':'same'})
-        self.assertIn('created by Virat',reply['reply']);self.assertEqual(reply['mode'],'identity')
+        self.assertIn('made by Virat with the help of Kitty Corp',reply['reply']);self.assertEqual(reply['mode'],'identity')
     def test_drive_requires_oauth_secret_not_api_key(self):
         self.assertEqual(self.request('/v1/admin/drive',{},self.admin)[0],400)
     def test_training_export_only_reviewed_and_consented(self):

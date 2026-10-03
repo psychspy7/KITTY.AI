@@ -29,3 +29,6 @@ training/runs/
 *signing-backup*
 
 admin.sealed
+
+# Firebase public app config is restored from a repository variable during release.
+android/app/google-services.json
