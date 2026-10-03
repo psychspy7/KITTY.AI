@@ -1,4 +1,0 @@
-cryptography>=43,<47
-google-auth>=2.35,<3
-requests>=2.32,<3
-firebase-admin>=6.6,<8

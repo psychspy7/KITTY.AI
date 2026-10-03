@@ -25,7 +25,7 @@ The core prompt shapes replies before generation. This is not model fine-tuning.
 
 ## Setup and boundaries
 
-No always-on PC, VM, Docker, Turso, USB or local model is used by version 0.6. Old `server`, `cloud`, `deploy`, Python tests and older guides are historical reference; do not follow them for this edition. The new backend is entirely in `functions/`, with `firebase.json`, `firestore.rules` and `firestore.indexes.json` at the root.
+No always-on PC, VM, Docker, Turso, USB or local model is used by version 0.6. Earlier laptop/VM editions are available in [Git history](https://github.com/psychspy7/KITTY.AI/tree/3d6317b3d3d3cdc8c2081c11e808474a2bcbcc7f); their runtime files and model-download workflow have been removed from the current source. The new backend is entirely in `functions/`, with `firebase.json`, `firestore.rules` and `firestore.indexes.json` at the root.
 
 No microphone, accessibility, contacts, calls, installer or foreground-service permission is requested. This version does not listen in the background, control other apps, place calls, browse the live web or send background push notifications. API-generated knowledge alone is not live internet access. Scanner acceptance is not guaranteed.
 

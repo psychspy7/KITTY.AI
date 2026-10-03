@@ -21,9 +21,9 @@ The default creator is **Virat with the help of Kitty Corp**. The default person
 
 ## 1. Get the new project folder
 
-Download the repository ZIP, extract it and open the folder containing `firebase.json`, `functions`, `android` and `README.md`. Do not work inside the ZIP.
+Download the repository ZIP, extract it into a NEW folder and open the folder containing `firebase.json`, `functions`, `android` and `README.md`. Do not work inside the ZIP.
 
-Old `server`, `cloud`, `deploy` and Python instructions are historical source retained for reference. **Do not run them for version 0.6.** This version does not use a VM, laptop IP, Docker, Caddy, Turso, USB forwarding or a local language model.
+The older laptop/VM implementation is preserved in Git history and removed from the current source. **Do not copy old `server`, `cloud`, `deploy` or model-launch files into version 0.6.** This version does not use a VM, laptop IP, Docker, Caddy, Turso, USB forwarding or a local language model.
 
 For pushing future updates, use Git instead of a ZIP. In PowerShell:
 
