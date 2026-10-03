@@ -18,7 +18,7 @@ let service;
 function getService() {
   if (!service) service = createService({repo: new FirestoreRepository(getFirestore()),
     verifyToken: token => getAuth().verifyIdToken(token, true), masterSecret: () => vaultKey.value(), providers: new Providers(),
-    adminEmail: adminEmail.value(), adminUid: adminUid.value()});
+    adminEmail: adminEmail.value() || 'viratanand1221@gmail.com', adminUid: adminUid.value()});
   return service;
 }
 
@@ -46,6 +46,7 @@ exports.kittyApi = onRequest({region, secrets: [vaultKey], timeoutSeconds: 120, 
       const audio = await app.speech(user, req.body, controller.signal); res.type('audio/wav').send(audio);
     } else res.json(await app.handle(user, req.method, path, req.body || {}));
   } catch (error) {
+    if (error.code === 7) {error.status = 503; error.message = 'Firebase data access needs attention from Virat. Check the function service account permissions.';}
     // Never send provider response bodies, bearer tokens or key material to logs or phones.
     const message = error.status ? error.message : 'KITTY could not finish that request. Please retry.';
     if (res.headersSent) { if (!res.destroyed) res.write(`event: error\ndata: ${JSON.stringify({error: message})}\n\n`); res.end(); }

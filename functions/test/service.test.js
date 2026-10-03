@@ -48,6 +48,10 @@ test('expired/revoked token and malformed bearer are rejected', async () => {
   const f = fixture({verifyToken: async () => {throw Error('revoked');}});
   for (const header of ['', 'Basic token', 'Bearer ', 'Bearer two tokens', 'Bearer revoked']) await assert.rejects(f.service.account(header), {status: 401});
 });
+test('cloud IAM failure is reported as setup attention, not an expired user login', async () => {
+  const f = fixture({verifyToken: async () => {const error = Error('upstream IAM'); error.code = 'auth/insufficient-permission'; throw error;}});
+  await assert.rejects(f.service.account('Bearer valid-token'), {status: 503});
+});
 test('ordinary users cannot change or read admin settings, export, keys or notices', async () => {
   const f = fixture();
   for (const path of ['/v1/admin/settings', '/v1/admin/models', '/v1/admin/notice', '/v1/admin/export']) await assert.rejects(f.service.handle(f.user, 'POST', path, {role: 'admin', uid: 'virat'}), {status: 403});

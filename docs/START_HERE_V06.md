@@ -152,6 +152,10 @@ firebase deploy --only functions:kittyApi,firestore
 
 If prompted about enabling required Google Cloud APIs, let Firebase enable them for this project. The function uses the platform's service identity and Firebase Admin SDK. No always-on PC process is needed.
 
+**Check the runtime service account's permissions:** In Google Cloud Console, open this function/Cloud Run service and find its **runtime service account**. It is usually `PROJECT_NUMBER-compute@developer.gserviceaccount.com`; copy the actual account shown for your function rather than guessing. Go to **IAM & Admin → IAM**, edit that account (or Grant access if absent), and ensure it has **Cloud Datastore User** (`roles/datastore.user`) for Firestore read/write and **Firebase Authentication Viewer** (`roles/firebaseauth.viewer`) for revoked/disabled-user checks. Do not grant these roles to public users or to the APK. The Firebase CLI binds secret access during deployment; if injection fails, check **Secret Manager Secret Accessor** on the specific `KITTY_VAULT_KEY` secret for that same runtime account. Avoid giving the runtime broad Owner access to fix a setup error.
+
+Cloud emulators do not enforce production IAM, so this check matters even when tests pass. If permissions were just changed, allow them to propagate and retry; you can redeploy the function if required. [Function identity](https://cloud.google.com/functions/docs/securing/function-identity), [Firebase Auth roles](https://cloud.google.com/iam/docs/roles-permissions/firebaseauth), [Firestore server IAM](https://cloud.google.com/firestore/native/docs/security/iam).
+
 The API URL will be:
 
 ```text

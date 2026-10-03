@@ -39,7 +39,10 @@ function identityReply(input, settings, admin) {
 function createService({repo, verifyToken, masterSecret, providers, adminEmail = 'viratanand1221@gmail.com', adminUid = '', now = Date.now}) {
   async function account(authorization) {
     if (!/^Bearer [^\s]+$/.test(authorization || '')) throw new ApiError(401, 'Sign in with Google.');
-    let claims; try { claims = await verifyToken(authorization.slice(7)); } catch { throw new ApiError(401, 'Sign in again.'); }
+    let claims; try { claims = await verifyToken(authorization.slice(7)); } catch (error) {
+      if (['auth/insufficient-permission', 'auth/internal-error', 'auth/project-not-found'].includes(error.code)) throw new ApiError(503, 'Google login verification needs attention from Virat. Check Firebase service permissions.');
+      throw new ApiError(401, 'Sign in again.');
+    }
     if (!claims || claims.email_verified !== true || claims.firebase?.sign_in_provider !== 'google.com') throw new ApiError(401, 'Use a verified Google account.');
     const uid = id(claims.uid), email = String(claims.email || '').toLowerCase();
     // Both UID and verified email are required. Never bootstrap a role from a phone extra.

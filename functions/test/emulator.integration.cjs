@@ -51,6 +51,8 @@ test('real Firebase Auth/Firestore emulators enforce owner, rules, transactions 
     process.env.GCLOUD_PROJECT = projectId;
     process.env.FUNCTIONS_EMULATOR = 'true';
     process.env.KITTY_ADMIN_UID = virat.uid;
+    process.env.KITTY_ADMIN_EMAIL = 'viratanand1221@gmail.com';
+    process.env.KITTY_REGION = 'asia-south1';
     process.env.KITTY_VAULT_KEY = 'c'.repeat(64);
     const express = require('express');
     const app = express(); app.use(express.json()); app.use(require('../src/index').kittyApi);
